@@ -1,5 +1,5 @@
 ---
-description: Rules for working with Qdrant storage and AI provider integrations.
+description: Rules for working with Qdrant storage, embeddings, and RAG (Ask) logic.
 globs:
   - "src/lib/qdrant-store.ts"
   - "src/lib/providers/**/*.ts"
@@ -9,28 +9,34 @@ alwaysApply: false
 
 # Storage & AI Provider Conventions
 
-This rule covers the implementation details for vector storage and AI provider integrations.
+This rule covers the implementation of vector storage (Qdrant) and AI provider integrations.
 
-## Store Interface (`src/lib/store.ts`)
-All storage backends must implement the `Store` interface:
-- `uploadFile`: Handles chunking and embedding.
-- `search`: Performs vector similarity search.
-- `ask`: Implements RAG (Retrieval-Augmented Generation).
-
-## Qdrant Implementation Details
-- **Chunking**: Default strategy is 50 lines per chunk with a 10-line overlap (`src/lib/qdrant-store.ts`).
-- **Point IDs**: Use `generatePointId(externalId, chunkIndex)` to create deterministic UUIDs.
-- **Payloads**: Always include `path`, `path_scopes`, `hash`, and `content` in the Qdrant payload.
+## Vector Storage (Qdrant)
+- **Chunking Strategy**: Source code is split into overlapping windows. Default: 50 lines per chunk with a 10-line overlap.
+- **Payload Structure**: Every point in Qdrant must include:
+  - `path`: Full relative path.
+  - `path_scopes`: Array of parent directories for filtering.
+  - `hash`: SHA256 of the file content.
+  - `content`: The raw text of the chunk.
+  - `start_line` / `num_lines`: Metadata for the chunk's location.
 
 ## AI Providers (`src/lib/providers/`)
-- **Embeddings**: Implement `EmbeddingsClient`. Ensure `embedBatch` is used for efficiency during sync.
-- **LLM**: Implement `LLMClient`. Support both `chat` and `chatStream` where possible.
-- **Adding Providers**: 
-  1. Create a new file in `src/lib/providers/embeddings/` or `src/lib/providers/llm/`.
-  2. Register the provider in the respective `index.ts` factory.
-  3. Update the Zod schema in `src/lib/config.ts` to include the new provider name.
+- **Embeddings**: Implement `EmbeddingsClient`. Use `embedBatch` for efficiency during indexing.
+- **LLM**: Implement `LLMClient`. Support `chat` and `chatStream`.
+- **Adding a Provider**:
+  1. Create implementation in `src/lib/providers/[embeddings|llm]/`.
+  2. Register in the factory at `src/lib/providers/index.ts`.
+  3. Update the Zod schema in `src/lib/config.ts`.
 
-## Performance & Limits
-- Use `p-limit` to control concurrency during bulk uploads (default: 20).
-- Respect `maxFileSize` (default: 10MB) before processing files.
-- Use `istextorbinary` to skip binary files during indexing.
+## RAG (Ask) Pipeline
+The `store.ask()` method follows this flow:
+1. **Embed**: Convert user question to a vector.
+2. **Search**: Retrieve relevant chunks from Qdrant using the vector and path filters.
+3. **Context**: Assemble chunks into a prompt.
+4. **LLM**: Call the LLM to generate an answer.
+5. **Citations**: The LLM should use `<cite i="...">` tags which the CLI parses to link back to source chunks.
+
+## Performance Limits
+- **Batching**: Embeddings should be generated in batches (default 100).
+- **Timeouts**: 30s for embeddings, 60s for LLM requests.
+- **Retries**: Implement a retry mechanism (default 3) for transient API errors.

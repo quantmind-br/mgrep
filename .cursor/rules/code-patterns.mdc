@@ -5,35 +5,28 @@ globs:
 alwaysApply: false
 ---
 
-# mgrep Code Patterns & Conventions
+# mgrep Code Patterns & Development Standards
 
-Follow these patterns to maintain consistency across the `mgrep` codebase.
+Follow these patterns to maintain consistency and ensure the "Sync-on-Demand" architecture works correctly.
 
 ## Service Instantiation (Factory Pattern)
-Never instantiate service classes (like `QdrantStore` or `NodeFileSystem`) directly. Always use the factory functions in `src/lib/context.ts`.
-
+Never instantiate service classes directly. Use the factory functions in `src/lib/context.ts`.
 - **DO**: `const store = await createStore();`
 - **DON'T**: `const store = new QdrantStore(...);`
 
-## Configuration & Validation
-- Use `src/lib/config.ts` for all configuration needs.
-- Define new configuration schemas using `zod`.
-- Access config via `loadConfig(cwd, options)`.
-
 ## CLI Command Structure
-Each command should be a standalone module in `src/commands/`.
-- Use `commander` to define the command.
-- Wrap the action in a `try-catch` block.
-- Use `process.exitCode = 1` for errors rather than immediate `process.exit()`.
+- Define commands in `src/commands/` using `commander`.
+- **Error Handling**: Wrap actions in `try-catch`. Use `process.exitCode = 1` for errors.
+- **Config**: Always load config via `loadConfig(process.cwd(), options)`.
 
 ```typescript
 export const myCommand = new Command()
-  .name("my-cmd")
+  .name("example")
   .action(async (options) => {
     try {
       const config = await loadConfig(process.cwd(), options);
       const store = await createStore();
-      // Logic here
+      // Implementation
     } catch (error) {
       console.error(chalk.red(error.message));
       process.exitCode = 1;
@@ -41,10 +34,12 @@ export const myCommand = new Command()
   });
 ```
 
-## File System & Git
-- Use `src/lib/file.ts` for file discovery; it respects `.gitignore` and `.mgrepignore`.
-- Use `src/lib/git.ts` to interact with the local git repository.
+## File System & Syncing
+- **Discovery**: Use `src/lib/file.ts`. It respects `.gitignore` and `.mgrepignore` via the `ignore` library.
+- **Validation**: Use `istextorbinary` to skip binary files and check `maxFileSize` (default 10MB).
+- **Concurrency**: Use `p-limit` (default 20) for parallel file operations during `initialSync`.
+- **Hashing**: Use SHA256 hashes to detect changes between local files and the remote store.
 
-## Logging
-- Use the centralized logger in `src/lib/logger.ts`.
-- Avoid raw `console.log` in core library files; use the logger to ensure output is captured in the log files at `~/.local/state/mgrep/logs`.
+## Configuration
+- Define all schemas in `src/lib/config.ts` using `zod`.
+- Configuration follows a hierarchy: Defaults -> Global YAML -> Local YAML -> Env Vars -> CLI Flags.

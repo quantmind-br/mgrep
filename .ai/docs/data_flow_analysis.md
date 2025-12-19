@@ -2,89 +2,98 @@
 
 ## Data Models Overview
 
-The `mgrep` application uses several key data models to manage configuration, file metadata, and vector search data:
+The `mgrep` application uses several key data models to manage configuration, file metadata, and search results.
 
-- **MgrepConfig**: Defined using Zod schemas in `src/lib/config.ts`. It encompasses settings for `qdrant`, `embeddings` (provider, model, batch size), `llm` (provider, model, temperature), and `sync` (concurrency).
-- **FileMetadata**: A simple structure containing `path` and `hash` (SHA256), used to track file changes and determine if a file needs re-indexing.
-- **Chunk Models**:
-    - `BaseChunk`: Contains `score`, `metadata`, `chunk_index`, and `generated_metadata` (start line, number of lines).
-    - `TextChunk`: Extends `BaseChunk` with the actual `text` content.
-    - `ImageURLChunk`, `AudioURLChunk`, `VideoURLChunk`: Variants for multi-modal data.
-- **StoreFile**: Represents a file in the store with an `external_id` and its `metadata`.
-- **QdrantPayload**: The schema for data stored in Qdrant points, including `external_id`, `path`, `path_scopes` (for prefix filtering), `hash`, `content`, `chunk_index`, and line information.
-- **Provider Models**:
-    - `EmbeddingResult`: Contains the numerical `embedding` vector and `tokenCount`.
-    - `ChatMessage` & `CompletionResult`: Models for LLM interactions (role, content, token usage).
+- **Configuration Models**:
+    - `MgrepConfig`: The root configuration object containing settings for Qdrant, Embeddings, LLM, and Sync. Validated using Zod.
+    - `EmbeddingsConfig` & `LLMConfig`: Provider-specific settings (model, API key, base URL, etc.).
+- **File & Metadata Models**:
+    - `FileMetadata`: Contains the `path` and `hash` (SHA256) of a file.
+    - `StoreFile`: Represents a file in the vector store, including its `external_id` and metadata.
+- **Search & Retrieval Models**:
+    - `ChunkType`: A union type for different content types: `TextChunk`, `ImageURLChunk`, `AudioURLChunk`, and `VideoURLChunk`.
+    - `SearchResponse`: Contains an array of `ChunkType` results.
+    - `AskResponse`: Contains a generated `answer` and the `sources` (chunks) used to generate it.
+- **Persistence Models**:
+    - `QdrantPayload`: The structure of data stored in Qdrant points, including `external_id`, `path`, `path_scopes` (for prefix filtering), `hash`, `content`, and chunking metadata (`start_line`, `num_lines`).
 
 ## Data Transformation Map
 
-Data undergoes several transformations as it moves from the local filesystem to the vector database and finally to the user:
+Data undergoes several transformations as it moves from the local file system to the vector database and back to the user.
 
-1.  **File Content to Chunks**: In `QdrantStore.chunkText`, raw file content is split into overlapping text chunks (default 50 lines with 10 lines overlap).
-2.  **Text to Vectors**: Text chunks are passed to `EmbeddingsClient.embedBatch`, which transforms strings into high-dimensional numerical vectors using providers like OpenAI or Google.
-3.  **Metadata Enrichment**: Filesystem paths are transformed into `path_scopes` (e.g., `/a/b/c` -> `["/", "/a", "/a/b", "/a/b/c"]`) to support efficient prefix-based filtering in Qdrant.
-4.  **Deterministic ID Generation**: `generatePointId` transforms a combination of `externalId` and `chunkIndex` into a UUID-compatible string using SHA256, ensuring that the same chunk always maps to the same point in Qdrant.
-5.  **Query to Context**: During a search or "ask" operation:
-    - The user's natural language query is transformed into a vector.
-    - Qdrant returns matching `QdrantPayload` objects.
-    - These payloads are transformed back into `TextChunk` objects.
-    - For "ask" commands, these chunks are serialized into a text block used as context for the LLM prompt.
+1.  **Sync/Ingestion Transformation**:
+    - **File to Buffer**: Local files are read into memory as Buffers.
+    - **Buffer to Hash**: A SHA256 hash is computed for change detection.
+    - **Content to Chunks**: Text content is split into overlapping chunks (default 50 lines with 10 lines overlap) in `QdrantStore.chunkText`.
+    - **Chunks to Vectors**: Each chunk is sent to an embedding provider (e.g., OpenAI) to generate a high-dimensional vector.
+    - **Metadata to Payload**: File paths are transformed into `path_scopes` (e.g., `/a/b/c` -> `["/", "/a", "/a/b", "/a/b/c"]`) to support hierarchical filtering.
+2.  **Search Transformation**:
+    - **Query to Vector**: The search string is transformed into a vector using the same embedding model.
+    - **Vector to Points**: Qdrant performs a similarity search and returns points with payloads.
+    - **Points to Chunks**: Payloads are mapped back to `TextChunk` or other chunk types.
+3.  **RAG (Ask) Transformation**:
+    - **Context Assembly**: Retrieved chunks are concatenated to form a context window.
+    - **LLM Processing**: The context and question are transformed into a natural language answer.
+    - **Citation Extraction**: The CLI parses `<cite i="...">` tags from the LLM response to link answers back to specific source chunks.
 
 ## Storage Interactions
 
-- **Qdrant (Vector Database)**: The primary persistence layer. It stores embeddings and their associated payloads. Interactions include `upsert` (for indexing), `search` (for similarity retrieval), and `delete` (for removing files).
-- **Local Filesystem**:
-    - **Source Data**: Reads project files for indexing.
-    - **Configuration**: Reads `.mgreprc.yaml` (local) and `~/.config/mgrep/config.yaml` (global).
-    - **Ignore Rules**: Reads `.gitignore` and `.mgrepignore` to filter files.
-- **Git**: The application interacts with Git (via `NodeGit`) to identify tracked files and respect repository boundaries.
+- **Qdrant (Vector Database)**:
+    - Acts as the primary persistent storage for embeddings and file content.
+    - Uses collections (prefixed with `mgrep_`) to isolate different stores.
+    - Supports payload indexing on `external_id`, `path`, and `path_scopes` for efficient filtering.
+    - Uses deterministic point IDs generated from `external_id` and `chunk_index` to allow idempotent updates.
+- **Local File System**:
+    - Source of truth for the files being indexed.
+    - Stores configuration in `.mgreprc.yaml` (local) or `~/.config/mgrep/config.yaml` (global).
 
 ## Validation Mechanisms
 
-- **Configuration Validation**: `zod` is used in `src/lib/config.ts` to strictly validate the structure and types of configuration files and environment variables.
-- **File Integrity**: SHA256 hashes are calculated for every file. During sync, the application compares the local hash with the hash stored in Qdrant to skip unchanged files.
-- **File Size Constraints**: The `maxFileSize` setting (default 10MB) is checked before reading or processing any file to prevent memory issues or API limits.
-- **Provider Validation**: The system validates provider types (e.g., ensuring Anthropic isn't used for embeddings) and ensures required API keys are present.
+- **Schema Validation**: Uses `zod` in `src/lib/config.ts` to validate configuration files and environment variables.
+- **File Validation**:
+    - `exceedsMaxFileSize`: Skips files larger than the configured limit (default 10MB).
+    - `isText`: Uses the `istextorbinary` library to ensure only text files are processed for standard indexing.
+    - Empty file check: Skips files with zero bytes.
+- **Data Integrity**: SHA256 hashes are used to compare local file state with the state stored in Qdrant, ensuring only modified files are re-indexed.
 
 ## State Management Analysis
 
-- **Stateless CLI Design**: The `mgrep` CLI is designed to be mostly stateless. It does not maintain a local database of indexed files; instead, it queries Qdrant to determine the current state of the remote index.
-- **Configuration Caching**: `src/lib/config.ts` implements a simple `configCache` (a `Map`) to avoid re-parsing configuration files multiple times during a single execution.
-- **Deterministic State Mapping**: By using deterministic point IDs based on file paths and chunk indices, the application maintains a consistent mapping between the local filesystem state and the remote vector store without needing a separate state synchronization table.
+- **Stateless Execution**: The CLI is largely stateless; it derives the necessary state for each command by querying the local file system and the remote Qdrant instance.
+- **Remote State**: The "state" of the indexed repository is maintained in Qdrant.
+- **Sync State**: During `initialSync`, the application builds a temporary map of `external_id -> hash` from the store to determine which files need to be uploaded, updated, or deleted.
+- **Concurrency Control**: Uses `p-limit` to manage the number of simultaneous upload/embedding operations.
 
 ## Serialization Processes
 
-- **YAML Serialization**: Configuration is stored and read in YAML format using the `yaml` package.
-- **JSON Serialization**:
-    - Communication with the Qdrant REST API.
-    - Communication with LLM and Embedding provider APIs (OpenAI, Google, Anthropic).
-- **Text Encoding**: File contents are read as UTF-8 strings. The `QdrantStore` handles both Node.js `ReadableStream` and Web `ReadableStream` for file uploads, ensuring cross-environment compatibility.
-- **Vector Serialization**: Embeddings are handled as arrays of numbers (`number[]`) before being sent to or received from Qdrant.
+- **YAML**: Used for reading and writing configuration files.
+- **JSON**: Used for communication with the Qdrant API and LLM/Embedding providers.
+- **Deterministic ID Generation**: `generatePointId` serializes the combination of `externalId` and `chunkIndex` into a UUID-compatible string using SHA256.
+- **Path Scoping**: Serializes file paths into an array of parent directory strings for prefix-based filtering.
 
 ## Data Lifecycle Diagrams
 
-### Indexing Lifecycle
-```
-[File System] -> (Read) -> [Raw Content] -> (Hash) -> [Metadata]
-                                |
-                        (Chunking Logic)
-                                |
-                        [Text Chunks] -> (Embedding Provider) -> [Vectors]
-                                |                                   |
-                        (Combine with Metadata & Deterministic ID)
-                                |
-                        [Qdrant Point (Payload + Vector)] -> (Upsert) -> [Qdrant DB]
+### Sync Lifecycle
+```mermaid
+graph TD
+    A[Local File] --> B{Hash Check}
+    B -- Match --> C[Skip]
+    B -- Mismatch/New --> D[Read Content]
+    D --> E[Chunk Text]
+    E --> F[Generate Embeddings]
+    F --> G[Upsert to Qdrant]
+    G --> H[Update Store Metadata]
 ```
 
-### Search & Ask Lifecycle
-```
-[User Query] -> (Embedding Provider) -> [Query Vector]
-                                            |
-                                    (Vector Similarity Search)
-                                            |
-[Qdrant DB] ------------------------> [Matched Payloads]
-                                            |
-                                    (Transform to Chunks)
-                                            |
-[LLM Answer] <--- (LLM Provider) <--- [Contextual Prompt]
+### Search/Ask Lifecycle
+```mermaid
+graph TD
+    A[User Query] --> B[Generate Embedding]
+    B --> C[Vector Search in Qdrant]
+    C --> D[Retrieve Payloads]
+    D --> E{Command Type}
+    E -- Search --> F[Format & Display Chunks]
+    E -- Ask --> G[Assemble Context]
+    G --> H[LLM Chat Completion]
+    H --> I[Extract Citations]
+    I --> J[Display Answer + Sources]
 ```

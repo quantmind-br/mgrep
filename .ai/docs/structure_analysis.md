@@ -1,103 +1,66 @@
 # Code Structure Analysis
 
 ## Architectural Overview
+`mgrep` is a semantic search and file indexing CLI tool designed to bridge local codebases with vector-based retrieval and LLM-powered question answering. The architecture is built around a **Sync-on-Demand** pattern, where local file systems are synchronized with a vector database (primarily Qdrant) before search or query operations.
 
-`mgrep` is a modular TypeScript-based CLI tool designed for semantic search and file synchronization within code repositories. The architecture is built around a provider-based model that abstracts vector storage and AI capabilities (embeddings and LLMs), allowing for flexible integration with different backends.
-
-The system follows a layered approach:
-- **CLI Layer**: Handles command-line parsing and user interaction.
-- **Service Layer**: Orchestrates core logic such as file system traversal, git integration, and synchronization.
-- **Abstraction Layer**: Defines vendor-neutral interfaces for storage and AI providers.
-- **Provider Layer**: Implements specific integrations (e.g., Qdrant for storage, OpenAI/Anthropic for AI).
+The system is organized into several distinct layers:
+- **CLI Layer**: Handles command parsing and user interaction.
+- **Command Layer**: Orchestrates high-level workflows like searching, watching, and installing integrations.
+- **Service/Library Layer**: Contains the core logic for file system traversal, git integration, text chunking, and synchronization.
+- **Provider Layer**: Abstracted interfaces for external AI services (Embeddings and LLMs).
+- **Storage Layer**: Abstracted interface for vector database operations.
 
 ## Core Components
-
-### CLI Entry Point (`src/index.ts`)
-- Bootstraps the application using `commander`.
-- Registers commands for searching, watching, and installing integrations.
-- Initializes global logging and configuration.
-
-### Command Modules (`src/commands/`)
-- **search.ts**: Implements semantic search and question-answering logic.
-- **watch.ts**: Provides a file-watching service that synchronizes local changes to a remote store.
-- **watch_mcp.ts**: Integration with the Model Context Protocol (MCP).
-
-### Core Library (`src/lib/`)
-- **store.ts**: Defines the `Store` interface and common data types for semantic storage.
-- **qdrant-store.ts**: The primary implementation of the `Store` interface using the Qdrant vector database.
-- **file.ts**: Handles file system operations, including filtering based on ignore patterns.
-- **git.ts**: Provides git-specific functionality like identifying tracked files.
-- **config.ts**: Manages hierarchical configuration (defaults, global, local, environment variables) using Zod for validation.
-- **context.ts**: A factory module that wires together services and providers based on configuration.
-
-### Provider System (`src/lib/providers/`)
-- **Embeddings**: Implementations for generating vector embeddings (Google, OpenAI).
-- **LLM**: Implementations for large language model interactions (Anthropic, Google, OpenAI).
+- **CLI Entry Point (`src/index.ts`)**: The main executable that configures the `commander` CLI and registers all commands.
+- **Search Command (`src/commands/search.ts`)**: The primary interface for semantic search and RAG (Retrieval-Augmented Generation). It triggers synchronization before executing queries.
+- **Watch Command (`src/commands/watch.ts`)**: Monitors the file system for changes and incrementally updates the vector store.
+- **MCP Server (`src/commands/watch_mcp.ts`)**: Implements the Model Context Protocol to allow AI agents to interact with the `mgrep` indexing service.
+- **Qdrant Store (`src/lib/qdrant-store.ts`)**: The concrete implementation of the `Store` interface, managing collections, point IDs, and vector searches in Qdrant.
+- **File System Manager (`src/lib/file.ts`)**: Handles recursive file discovery, respecting `.gitignore` and `.mgrepignore` patterns.
+- **Git Integration (`src/lib/git.ts`)**: Provides utilities to detect git repositories and list tracked/untracked files using the `git` CLI.
 
 ## Service Definitions
-
-### Store Service (`Store` interface)
-- **Responsibility**: Manages the persistence and retrieval of document embeddings and metadata.
-- **Key Operations**: `uploadFile`, `deleteFile`, `search`, `ask`, `listFiles`.
-- **Implementation**: `QdrantStore` handles text chunking, embedding generation via providers, and vector indexing in Qdrant.
-
-### File System Service (`FileSystem` interface)
-- **Responsibility**: Provides a filtered view of the local file system.
-- **Key Operations**: `getFiles`, `isIgnored`.
-- **Implementation**: `NodeFileSystem` integrates with `NodeGit` to respect `.gitignore` and `.mgrepignore` files.
-
-### Configuration Service
-- **Responsibility**: Aggregates configuration from multiple sources.
-- **Hierarchy**: CLI Flags > Environment Variables > Local `.mgreprc.yaml` > Global `~/.config/mgrep/config.yaml` > Defaults.
+- **Store Service (`Store` interface)**: Responsible for the lifecycle of documents in the vector database, including uploading, deleting, searching, and retrieving store metadata.
+- **Embeddings Service (`EmbeddingsClient` interface)**: Generates high-dimensional vector representations of text chunks.
+- **LLM Service (`LLMClient` interface)**: Provides chat completion capabilities, used primarily for the `ask` functionality to generate answers from retrieved context.
+- **Sync Service (`initialSync` in `src/lib/utils.ts`)**: A critical utility that reconciles the state of the local file system with the vector store by comparing file hashes.
 
 ## Interface Contracts
-
-### Store Interface (`src/lib/store.ts`)
-```typescript
-export interface Store {
-  listFiles(storeId: string, options?: ListFilesOptions): AsyncGenerator<StoreFile>;
-  uploadFile(storeId: string, file: File | ReadableStream, options: UploadFileOptions): Promise<void>;
-  deleteFile(storeId: string, externalId: string): Promise<void>;
-  search(storeIds: string[], query: string, top_k?: number, search_options?: { rerank?: boolean }, filters?: SearchFilter): Promise<SearchResponse>;
-  ask(storeIds: string[], question: string, top_k?: number, search_options?: { rerank?: boolean }, filters?: SearchFilter): Promise<AskResponse>;
-}
-```
-
-### AI Provider Interfaces (`src/lib/providers/types.ts`)
-- **EmbeddingsClient**: `embed(text: string)`, `embedBatch(texts: string[])`, `getDimensions()`.
-- **LLMClient**: `chat(messages: ChatMessage[])`, `chatStream?(messages: ChatMessage[])`.
+- **`Store`**: Defines methods for `listFiles`, `uploadFile`, `deleteFile`, `search`, `ask`, and `getInfo`.
+- **`EmbeddingsClient`**: Defines `embed`, `embedBatch`, and `getDimensions`.
+- **`LLMClient`**: Defines `chat` and `chatStream`.
+- **`FileSystem`**: Defines `getFiles` and `isIgnored`.
+- **`Git`**: Defines `isGitRepository`, `getGitFiles`, and `getGitIgnoreFilter`.
 
 ## Design Patterns Identified
-
-- **Factory Pattern**: Used in `src/lib/context.ts` (`createStore`, `createFileSystem`) to instantiate complex objects with their dependencies.
-- **Strategy Pattern**: The provider system for Embeddings and LLMs allows switching between different AI vendors at runtime via configuration.
-- **Repository Pattern**: The `Store` interface abstracts the underlying vector database (Qdrant), treating it as a collection of documents.
-- **Command Pattern**: Each CLI command is encapsulated in its own module, following the `commander` pattern.
-- **Dependency Injection**: Services like `NodeFileSystem` receive their dependencies (like `Git`) through the constructor.
+- **Strategy Pattern**: Used extensively for `Store`, `EmbeddingsClient`, and `LLMClient` to support multiple providers (OpenAI, Google, Anthropic, Ollama) and storage backends.
+- **Factory Pattern**: Centralized in `src/lib/context.ts`, which provides `createStore`, `createGit`, and `createFileSystem` functions that instantiate the correct classes based on the loaded configuration.
+- **Dependency Injection**: The `QdrantStore` is injected with `EmbeddingsClient` and `LLMClient` instances, promoting testability and decoupling.
+- **Adapter Pattern**: The `NodeFileSystem` and `NodeGit` classes adapt standard Node.js APIs and CLI tools to the project's internal interfaces.
+- **Singleton/Cached Configuration**: `src/lib/config.ts` uses a caching mechanism for the loaded configuration to avoid redundant disk I/O.
 
 ## Component Relationships
-
-1.  **CLI Commands** use the **Context Factory** to obtain instances of **Store** and **FileSystem**.
-2.  **QdrantStore** (the Store implementation) depends on **EmbeddingsClient** and **LLMClient** to process data.
-3.  **NodeFileSystem** depends on **NodeGit** to determine which files should be ignored.
-4.  **Config** is used globally to drive the instantiation logic in the **Context Factory**.
+- **Commands** depend on **Context Factories** to obtain instances of **Store**, **FileSystem**, and **Git**.
+- **Store** implementations (like `QdrantStore`) depend on **Provider Clients** (Embeddings/LLM) to process data.
+- **Sync Logic** acts as a bridge between the **FileSystem** and the **Store**, using **Git** to refine the scope of files to be processed.
+- **Configuration** is the foundation used by all components to determine behavior, provider types, and API credentials.
 
 ## Key Methods & Functions
-
-- `createStore()` (`src/lib/context.ts`): The central wiring function that initializes the vector store and AI providers.
-- `search()` / `ask()` (`src/lib/qdrant-store.ts`): Core semantic operations that combine vector search with LLM synthesis.
-- `chunkText()` (`src/lib/qdrant-store.ts`): Internal logic for splitting files into overlapping segments for better embedding granularity.
-- `loadConfig()` (`src/lib/config.ts`): Hierarchical configuration loader with Zod validation.
-- `initialSync()` (`src/lib/sync-helpers.ts`): Logic for bulk uploading repository files to the store.
+- **`initialSync(...)` (`src/lib/utils.ts`)**: Orchestrates the full synchronization process, including hash comparison and parallelized uploads.
+- **`QdrantStore.ask(...)`**: Implements the RAG pipeline: search for context -> augment prompt -> call LLM -> return answer with citations.
+- **`chunkText(...)` (`src/lib/qdrant-store.ts`)**: Implements the logic for splitting source code into overlapping windows to maintain context during embedding.
+- **`loadConfig(...)` (`src/lib/config.ts`)**: Merges configuration from global YAML, local YAML, and environment variables with strict Zod validation.
 
 ## Available Documentation
+- **`/.ai/docs/`**: Contains detailed AI-generated analyses:
+    - `api_analysis.md`: Deep dive into API structures.
+    - `data_flow_analysis.md`: Traces how data moves through the system.
+    - `dependency_analysis.md`: Maps internal and external dependencies.
+    - `request_flow_analysis.md`: Details the lifecycle of a search/ask request.
+    - `structure_analysis.md`: Earlier structural overview.
+- **`AGENTS.md`**: Guidelines for AI agents interacting with the codebase.
+- **`CLAUDE.md`**: Development notes and commands for Claude Code.
+- **`README.md`**: High-level user documentation and installation instructions.
+- **`/guides/README.md`**: Additional usage guides.
 
-- **README.md**: High-level overview and usage instructions.
-- **PLAN.md**: Development roadmap and task tracking.
-- **AGENTS.md**: Documentation regarding AI agent integrations.
-- **.ai/docs/**:
-    - `structure_analysis.md`: **Note: This document appears outdated** as it references "Mixedbread" instead of the current "Qdrant" implementation.
-    - `api_analysis.md`, `data_flow_analysis.md`, `dependency_analysis.md`, `request_flow_analysis.md`.
-- **guides/README.md**: Additional user guides.
-
-**Documentation Quality**: The codebase is well-structured, but the internal architectural documentation in `.ai/docs/` needs updating to reflect the shift from Mixedbread to the generic provider/Qdrant architecture. The code itself is highly readable with clear interface definitions.
+**Documentation Quality**: High. The presence of specialized AI documentation in `.ai/docs/` and clear rule definitions in `.cursor/rules/` suggests a codebase optimized for both human developers and AI assistants.

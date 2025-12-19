@@ -3,7 +3,7 @@
 Hello! I'm the developer of `mgrep`. This guide provides the context you need to effectively work on this semantic search CLI tool.
 
 ## Project Overview
-`mgrep` is a modern, AI-powered replacement for `grep`. It indexes codebases into a Qdrant vector database and allows for semantic searching and RAG (Retrieval-Augmented Generation) question answering. It supports OpenAI, Anthropic, Google Gemini, and local Ollama instances.
+`mgrep` is a modern, AI-powered replacement for `grep`. It indexes codebases into a Qdrant vector database and allows for semantic searching and RAG (Retrieval-Augmented Generation) question answering. It bridges local file systems with vector-based retrieval, supporting OpenAI, Anthropic, Google Gemini, and local Ollama instances.
 
 ## Common Commands
 - **Install dependencies**: `npm install`
@@ -24,9 +24,12 @@ Hello! I'm the developer of `mgrep`. This guide provides the context you need to
 3. **Test Mode**: Set `MGREP_IS_TEST=1` to bypass Qdrant and use the in-memory `TestStore`.
 
 ## Architecture & Key Components
-The project follows a modular, provider-based architecture:
+The project follows a modular, provider-based architecture with a **Sync-on-Demand** pattern:
 
-- **CLI Layer (`src/index.ts`, `src/commands/`)**: Uses `commander` to route commands. `search.ts` and `watch.ts` are the primary logic hubs.
+- **CLI Layer (`src/index.ts`, `src/commands/`)**: Uses `commander` to route commands.
+  - `search.ts`: Primary interface for semantic search and RAG.
+  - `watch.ts`: Monitors file system for incremental updates.
+  - `watch_mcp.ts`: Implements Model Context Protocol for AI agent integration.
 - **Service Abstraction (`src/lib/store.ts`)**: Defines the `Store` interface for all vector operations.
 - **Qdrant Implementation (`src/lib/qdrant-store.ts`)**: Handles text chunking (50 lines/10 overlap), deterministic UUID generation for points, and path-scope metadata for filtering.
 - **Provider Layer (`src/lib/providers/`)**:
@@ -34,6 +37,7 @@ The project follows a modular, provider-based architecture:
   - `llm/`: OpenAI, Google, and Anthropic implementations.
 - **Context Factory (`src/lib/context.ts`)**: The "Composition Root" where services are instantiated based on configuration.
 - **Configuration (`src/lib/config.ts`)**: Hierarchical loading (CLI > Env > Local YAML > Global YAML) validated with Zod.
+- **Sync Service (`src/lib/utils.ts`)**: `initialSync` reconciles local file system state with the vector store using SHA256 hashes.
 
 ## Code Style & Conventions
 - **TypeScript**: Strict typing is preferred.

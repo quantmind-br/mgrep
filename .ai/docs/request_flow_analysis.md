@@ -1,112 +1,109 @@
 # Request Flow Analysis
 
+This document maps the complete journey of requests through the `mgrep` system, from initial CLI invocation or MCP request to the final response.
+
 ## Entry Points Overview
 
-The `mgrep` application is a CLI-based tool, and its entry points are defined by the command-line interface. The primary entry point is `src/index.ts`, which uses the `commander` library to define and dispatch commands.
+The application provides two primary entry points:
 
-*   **CLI Commands**:
-    *   `search` (Default): The main entry point for searching files.
-    *   `watch`: Starts a file watcher to sync local changes to the vector store.
-    *   `mcp`: Starts a Model Context Protocol (MCP) server, enabling integration with AI agents.
-    *   `install-*` / `uninstall-*`: Installation scripts for various platforms (Claude Code, Codex, Droid, OpenCode).
-*   **MCP Server**: When running in `mcp` mode, the system acts as a server responding to JSON-RPC requests over `stdio`.
-*   **File System Events**: In `watch` mode, the system reacts to local file system changes (create, modify, delete) as external triggers.
+1.  **CLI Entry Point (`src/index.ts`)**: The main entry point for users interacting with the tool via the command line. It uses the `commander` library to define and parse commands.
+2.  **MCP Entry Point (`src/commands/watch_mcp.ts`)**: An entry point for the Model Context Protocol (MCP), allowing the tool to act as a server for AI agents (like Claude Desktop). It uses `@modelcontextprotocol/sdk`.
 
 ## Request Routing Map
 
-Routing is handled by `commander` in `src/index.ts`, which maps CLI arguments to specific command handlers.
+Routing is handled differently depending on the entry point:
 
-1.  **Command Dispatch**: `program.parse()` evaluates `process.argv` and routes to the corresponding `.action()` handler.
-2.  **Search Routing**:
-    *   `mgrep search <pattern>` -> `src/commands/search.ts`
-    *   If `--answer` is present -> `store.ask()`
-    *   Otherwise -> `store.search()`
-3.  **Watch Routing**:
-    *   `mgrep watch` -> `src/commands/watch.ts` -> `startWatch()`
-4.  **MCP Routing**:
-    *   `mgrep mcp` -> `src/commands/watch_mcp.ts` -> `server.connect(transport)`
-5.  **Installation Routing**:
-    *   `mgrep install-claude-code` -> `src/install/claude-code.ts` -> `installPlugin()`
+*   **CLI Routing**: `commander` routes the command-line arguments to specific command handlers:
+    *   `search` (Default): Routes to `src/commands/search.ts`.
+    *   `watch`: Routes to `src/commands/watch.ts`.
+    *   `mcp`: Routes to `src/commands/watch_mcp.ts`.
+    *   `install-*` / `uninstall-*`: Routes to scripts in `src/install/`.
+*   **MCP Routing**: The `watchMcp` command sets up a `StdioServerTransport` and routes MCP requests via `server.setRequestHandler`:
+    *   `notifications/initialized`: Handled internally by the SDK.
+    *   `tools/list`: Returns available tools (currently empty).
+    *   `tools/call`: Executes specific tool logic (currently returns "Not implemented").
 
 ## Middleware Pipeline
 
-While not a traditional HTTP middleware stack, `mgrep` employs a series of preprocessing steps and abstractions that function similarly:
+The "middleware" in this CLI application consists of a sequence of initialization steps that prepare the environment for request processing:
 
-1.  **Logger Setup (`setupLogger`)**: Intercepts `console` methods to provide unified logging and file rotation via `winston`.
-2.  **Configuration Loading (`loadConfig`)**: A multi-stage pipeline that merges:
-    *   Default hardcoded values.
+1.  **Logger Initialization**: `setupLogger()` is called immediately in `index.ts`.
+2.  **Configuration Loading**: `loadConfig()` in `src/lib/config.ts` aggregates configuration from:
+    *   Hardcoded defaults.
     *   Global config (`~/.config/mgrep/config.yaml`).
     *   Local config (`.mgreprc.yaml`).
     *   Environment variables (`MGREP_*`).
-    *   CLI options.
-3.  **Context Initialization (`createStore`)**: Initializes the storage backend (Qdrant) and provider clients (Embeddings, LLM) based on the loaded configuration.
-4.  **File System Abstraction (`createFileSystem`)**: Wraps file operations and handles `.mgrepignore` logic.
-5.  **Syncing Logic (`initialSync`)**: A preprocessing step for `search` (if `--sync` is used) and `watch` that reconciles local files with the remote store.
+    *   CLI flags (overriding all the above).
+3.  **Context Creation**: `createStore()` in `src/lib/context.ts` acts as a factory that:
+    *   Initializes the **Embeddings Provider** (OpenAI, Google, etc.).
+    *   Initializes the **LLM Provider** (OpenAI, Anthropic, etc.).
+    *   Initializes the **Store Implementation** (typically `QdrantStore`).
+4.  **FileSystem Initialization**: `createFileSystem()` initializes the file system abstraction with ignore patterns (including `.gitignore` and `.mgrepignore`).
 
 ## Controller/Handler Analysis
 
-The core logic resides in command handlers and the `Store` implementation.
+The core logic resides in the command action handlers and the `Store` implementation:
 
 *   **Search Handler (`src/commands/search.ts`)**:
-    *   Validates input arguments and options.
-    *   Triggers optional synchronization.
-    *   Calls the store's search or ask methods.
-    *   Formats the raw results into human-readable output (with citations if answering).
+    *   Optionally triggers a `syncFiles` operation.
+    *   Calls `store.search()` for pattern matching or `store.ask()` for RAG-based questions.
+    *   Formats the `SearchResponse` or `AskResponse` for terminal output.
 *   **Watch Handler (`src/commands/watch.ts`)**:
-    *   Performs an initial full sync.
-    *   Sets up a recursive `fs.watch` loop.
-    *   Handles incremental updates (uploading changed files, deleting removed ones).
-*   **MCP Handler (`src/commands/watch_mcp.ts`)**:
-    *   Implements the MCP SDK server.
-    *   Redirects standard output to `stderr` to preserve the `stdout` communication channel.
-    *   Triggers background syncing.
-*   **Store Handler (`src/lib/qdrant-store.ts`)**:
-    *   **`search()`**: Embeds the query, applies path filters, and executes vector search in Qdrant.
-    *   **`ask()`**: Executes a search, constructs a prompt with retrieved context, and calls the LLM for a natural language response.
-    *   **`uploadFile()`**: Chunks text, generates embeddings, and upserts points to Qdrant.
+    *   Performs an `initialSync()` to align the remote store with the local file system.
+    *   Sets up a recursive `fs.watch()` to monitor real-time changes.
+    *   Dispatches `uploadFile` or `deleteFile` tasks on file events.
+*   **Store Controller (`src/lib/qdrant-store.ts`)**:
+    *   **`uploadFile`**: Chunks text, generates embeddings via the provider, and upserts to Qdrant.
+    *   **`search`**: Embeds the query, performs vector search in Qdrant, and applies path filters.
+    *   **`ask`**: Executes a search, constructs a prompt with the retrieved context, and calls the LLM for a synthesized answer.
 
 ## Authentication & Authorization Flow
 
-Authentication is handled at the provider level through API keys.
+As a local CLI tool, `mgrep` does not implement user-level authentication. Instead, it manages authorization to external services:
 
-1.  **Credential Retrieval**: API keys for Qdrant, OpenAI, Anthropic, or Google are retrieved during the `loadConfig` phase.
-2.  **Client Injection**: Keys are passed into the constructors of `QdrantClient`, `OpenAIEmbeddings`, `AnthropicLLM`, etc.
-3.  **Request Authorization**: Each outgoing request to external services (Vector DB or AI APIs) includes the required authorization headers (e.g., `api-key` or `Authorization: Bearer ...`).
-4.  **Local Access**: No user-level authorization is implemented for the CLI itself; it operates with the permissions of the user executing the process.
+1.  **Provider API Keys**: Keys for OpenAI, Anthropic, Google, and Qdrant are retrieved during the **Middleware Pipeline** (Config Loading).
+2.  **Credential Propagation**: These keys are passed to the respective provider clients (`OpenAILLM`, `GoogleEmbeddings`, etc.) during initialization in `context.ts`.
+3.  **Request Signing**: The provider SDKs (e.g., `openai` npm package) use these keys to sign outgoing HTTP requests to the respective APIs.
 
 ## Error Handling Pathways
 
-1.  **Global Catch-All**: Each command action is wrapped in a `try-catch` block that logs the error and sets `process.exitCode = 1`.
-2.  **Logger Interception**: Errors logged via `console.error` are captured by `winston` and written to the log directory (e.g., `~/.local/state/mgrep/logs`).
-3.  **Sync Resilience**: During `initialSync`, individual file failures are caught and counted, allowing the overall process to continue.
-4.  **Validation Errors**: `zod` is used in `src/lib/config.ts` to catch and report configuration schema mismatches early.
-5.  **CLI Argument Validation**: `commander` handles basic argument type checking and missing required arguments.
+Error handling is implemented at multiple levels:
+
+*   **CLI Validation**: `commander` catches missing arguments or invalid flags before the handler is executed.
+*   **Action-Level Catch**: Every command action is wrapped in a `try-catch` block that logs the error to `stderr` and sets a non-zero `process.exitCode`.
+*   **Sync Error Tracking**: `initialSync` in `src/lib/utils.ts` catches errors for individual file operations, increments an error counter, and continues processing other files.
+*   **Provider Retries**: The LLM and Embedding providers are configured with `maxRetries` (defaulting to 3) to handle transient network or API errors.
+*   **MCP Error Logging**: In MCP mode, `console.log/error` are redirected to `stderr` to avoid corrupting the JSON-RPC stream on `stdout`.
 
 ## Request Lifecycle Diagram
 
 ```mermaid
-graph TD
-    A[User Command / MCP Request] --> B[src/index.ts: Commander]
-    B --> C{Command Type}
+sequenceDiagram
+    participant User as User/Agent
+    participant CLI as CLI Entry (index.ts)
+    participant Config as Config Loader
+    participant Store as QdrantStore
+    participant EP as Embeddings Provider
+    participant LLM as LLM Provider
+    participant DB as Qdrant DB
+
+    User->>CLI: mgrep ask "How to use X?"
+    CLI->>Config: loadConfig()
+    Config-->>CLI: Config Object
+    CLI->>Store: createStore(config)
     
-    C -->|Search| D[src/commands/search.ts]
-    C -->|Watch| E[src/commands/watch.ts]
-    C -->|MCP| F[src/commands/watch_mcp.ts]
+    Note over CLI,Store: Request Processing Starts
     
-    D --> G[loadConfig]
-    G --> H[createStore]
-    H --> I[QdrantStore.search / ask]
-    I --> J[Embeddings / LLM API]
-    J --> I
-    I --> K[Format Response]
-    K --> L[Console Output]
+    CLI->>Store: ask(question)
+    Store->>EP: embed(question)
+    EP-->>Store: Vector
+    Store->>DB: search(vector, filters)
+    DB-->>Store: Relevant Chunks
+    Store->>Store: Build Context Prompt
+    Store->>LLM: chat(systemPrompt, userPrompt)
+    LLM-->>Store: Synthesized Answer
+    Store-->>CLI: AskResponse (Answer + Sources)
     
-    E --> M[initialSync]
-    M --> N[fs.watch Loop]
-    N --> O[uploadFile / deleteFile]
-    O --> P[Qdrant API]
-    
-    F --> Q[MCP Server Connect]
-    Q --> R[Background Sync]
-    R --> E
+    CLI->>CLI: formatAskResponse()
+    CLI->>User: Print Answer to Stdout
 ```
