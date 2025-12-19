@@ -1,0 +1,30 @@
+---
+description: High-level architecture and technology stack for mgrep.
+globs:
+  - "*"
+alwaysApply: true
+---
+
+# mgrep Project Overview
+
+`mgrep` is a modular TypeScript-based CLI tool for semantic search and file synchronization. It uses vector embeddings to enable natural language queries over local codebases.
+
+## Architectural Layers
+
+- **CLI Layer (`src/commands/`)**: Command-line parsing using `commander`. Each command (search, watch, mcp) is encapsulated in its own module.
+- **Service Layer (`src/lib/`)**: Orchestrates file system traversal, git integration, and synchronization logic.
+- **Abstraction Layer (`src/lib/store.ts`, `src/lib/providers/types.ts`)**: Defines vendor-neutral interfaces for vector storage and AI capabilities.
+- **Provider Layer (`src/lib/providers/`)**: Specific implementations for AI vendors (OpenAI, Anthropic, Google, Ollama).
+- **Storage Layer (`src/lib/qdrant-store.ts`)**: Primary implementation using the Qdrant vector database.
+
+## Key Technologies
+- **Runtime**: Node.js / TypeScript
+- **CLI**: `commander`, `ora` (spinners), `clack/prompts`
+- **Vector DB**: Qdrant (via `@qdrant/js-client-rest`)
+- **Validation**: `zod` (for configuration and API schemas)
+- **AI**: OpenAI SDK and direct `fetch` integrations for Anthropic/Google.
+
+## Core Concepts
+- **Deterministic IDs**: Point IDs in Qdrant are generated using SHA256 hashes of the file path and chunk index to ensure idempotency.
+- **Path Scoping**: Files are indexed with `path_scopes` (e.g., `/a/b/c` -> `["/", "/a", "/a/b", "/a/b/c"]`) to allow efficient directory-filtered searches.
+- **Hierarchical Config**: Config is merged from Defaults -> Global Config -> Local `.mgreprc.yaml` -> Env Vars -> CLI Flags.

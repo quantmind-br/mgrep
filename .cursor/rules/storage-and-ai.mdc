@@ -1,0 +1,36 @@
+---
+description: Rules for working with Qdrant storage and AI provider integrations.
+globs:
+  - "src/lib/qdrant-store.ts"
+  - "src/lib/providers/**/*.ts"
+  - "src/lib/store.ts"
+alwaysApply: false
+---
+
+# Storage & AI Provider Conventions
+
+This rule covers the implementation details for vector storage and AI provider integrations.
+
+## Store Interface (`src/lib/store.ts`)
+All storage backends must implement the `Store` interface:
+- `uploadFile`: Handles chunking and embedding.
+- `search`: Performs vector similarity search.
+- `ask`: Implements RAG (Retrieval-Augmented Generation).
+
+## Qdrant Implementation Details
+- **Chunking**: Default strategy is 50 lines per chunk with a 10-line overlap (`src/lib/qdrant-store.ts`).
+- **Point IDs**: Use `generatePointId(externalId, chunkIndex)` to create deterministic UUIDs.
+- **Payloads**: Always include `path`, `path_scopes`, `hash`, and `content` in the Qdrant payload.
+
+## AI Providers (`src/lib/providers/`)
+- **Embeddings**: Implement `EmbeddingsClient`. Ensure `embedBatch` is used for efficiency during sync.
+- **LLM**: Implement `LLMClient`. Support both `chat` and `chatStream` where possible.
+- **Adding Providers**: 
+  1. Create a new file in `src/lib/providers/embeddings/` or `src/lib/providers/llm/`.
+  2. Register the provider in the respective `index.ts` factory.
+  3. Update the Zod schema in `src/lib/config.ts` to include the new provider name.
+
+## Performance & Limits
+- Use `p-limit` to control concurrency during bulk uploads (default: 20).
+- Respect `maxFileSize` (default: 10MB) before processing files.
+- Use `istextorbinary` to skip binary files during indexing.

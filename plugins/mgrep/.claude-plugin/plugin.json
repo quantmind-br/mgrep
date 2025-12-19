@@ -1,0 +1,9 @@
+{
+  "name": "mgrep",
+  "description": "Semantic search for local files using Qdrant and configurable AI providers",
+  "version": "0.2.0",
+  "author": {
+    "name": "mgrep contributors"
+  },
+  "hooks": "./hooks/hook.json"
+}

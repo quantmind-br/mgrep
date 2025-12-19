@@ -1,0 +1,76 @@
+---
+description: Rules and patterns for creating and modifying CLI commands using Commander.js in mgrep.
+globs:
+  - "src/commands/**/*.ts"
+  - "src/index.ts"
+alwaysApply: false
+---
+
+# CLI Command Conventions
+
+This guide covers the patterns for adding or modifying CLI commands in `mgrep`.
+
+## Command File Structure
+
+-   Each CLI command is defined in its own file within the `src/commands/` directory (e.g., `src/commands/search.ts`).
+-   The command is constructed using `commander` and exported.
+-   The main entry point, `src/index.ts`, imports all command modules and registers them with the main program.
+
+## Creating a New Command
+
+1.  **Create the file**: Create a new file like `src/commands/my-command.ts`.
+2.  **Define the command**: Use `new Command()` to define the command's name, description, arguments, and options.
+3.  **Implement the action**: The `.action()` method contains the command's logic. This is an `async` function.
+4.  **Register the command**: Import and register your new command in `src/index.ts`.
+
+### Example Command Skeleton (`src/commands/new-command.ts`)
+
+```typescript
+import { Command } from "commander";
+import { createStore } from "@/lib/context";
+import { ensureAuthenticated } from "@/lib/utils";
+import { loadConfig } from "@/lib/config";
+
+// Define options if needed
+interface NewCommandOptions {
+  force: boolean;
+}
+
+export const newCommand = new Command()
+  .name("new-command")
+  .description("A description of what the new command does.")
+  .argument("<input>", "Description for the required input argument.")
+  .option("-f, --force", "Description for an optional flag.", false)
+  .action(async (input: string, options: NewCommandOptions) => {
+    try {
+      // 1. Ensure user is authenticated (if required)
+      await ensureAuthenticated();
+
+      // 2. Load configuration
+      const config = await loadConfig(process.cwd(), options);
+
+      // 3. Get service instances from factories
+      const store = await createStore();
+
+      // 4. Implement command logic
+      console.log(`Running new command with input: ${input}`);
+      // ... use the 'store' instance ...
+
+    } catch (error) {
+      console.error("Failed to execute new-command:", error.message);
+      process.exit(1);
+    }
+  });
+```
+
+### Registering in `src/index.ts`
+
+```typescript
+// In src/index.ts
+import { newCommand } from "./commands/new-command";
+// ... other command imports
+
+// ...
+program.addCommand(newCommand);
+// ...
+```

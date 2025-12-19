@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "mgrep",
+  "owner": {
+    "name": "mgrep contributors",
+    "email": "support@mixedbread.ai"
+  },
+  "plugins": [
+    {
+      "name": "mgrep",
+      "source": "./plugins/mgrep",
+      "description": "Semantic search for local files using Qdrant and configurable AI providers",
+      "version": "0.2.0",
+      "author": {
+        "name": "mgrep contributors"
+      },
+      "skills": ["./skills/mgrep"]
+    }
+  ]
+}
