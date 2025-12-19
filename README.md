@@ -8,6 +8,7 @@ The primary purpose of `mgrep` is to bridge the gap between local source code an
 
 ### Key Features and Capabilities
 - **Semantic Search**: Find code based on meaning and intent rather than just keywords.
+- **Web Search Integration**: Search the web using Tavily and combine results with local files.
 - **RAG (Retrieval-Augmented Generation)**: Ask questions about your codebase and receive AI-generated answers with direct citations to source files.
 - **Real-time Synchronization**: A background "watch" mode that monitors file changes and updates the vector store incrementally.
 - **AI Agent Integration**: Built-in support for the **Model Context Protocol (MCP)** and a dedicated **Claude Plugin**, enabling tools like Claude Desktop to "see" and search your code.
@@ -144,6 +145,8 @@ C4Container
     - **Google AI (Gemini)**: Supported for embeddings and LLM.
     - **Anthropic (Claude)**: Supported for LLM (answering queries).
     - **Ollama**: Supported for local execution via OpenAI-compatible endpoints.
+- **Web Search**:
+    - **Tavily**: Used for web search integration (`--web` flag).
 - **Model Context Protocol (MCP)**: Enables integration with AI agents like Claude Desktop.
 
 ## API Documentation
@@ -151,7 +154,7 @@ C4Container
 ### CLI Interface
 | Command | Description | Key Options |
 | :--- | :--- | :--- |
-| `search <pattern>` | Semantic search over indexed files. | `-a` (Ask/RAG), `-c` (Show content), `-s` (Sync first) |
+| `search <pattern>` | Semantic search over indexed files. | `-a` (Ask/RAG), `-c` (Show content), `-s` (Sync first), `-w` (Web search) |
 | `watch` | Starts background file synchronization. | `-d` (Dry run) |
 | `mcp` | Starts the MCP server for AI agents. | N/A |
 
@@ -162,7 +165,7 @@ C4Container
 
 ### Configuration
 Configuration is managed via `.mgreprc.yaml` (local) or `~/.config/mgrep/config.yaml` (global).
-- **Environment Variables**: `MGREP_QDRANT_API_KEY`, `MGREP_OPENAI_API_KEY`, `MGREP_ANTHROPIC_API_KEY`, `MGREP_GOOGLE_API_KEY`.
+- **Environment Variables**: `MGREP_QDRANT_API_KEY`, `MGREP_OPENAI_API_KEY`, `MGREP_ANTHROPIC_API_KEY`, `MGREP_GOOGLE_API_KEY`, `MGREP_TAVILY_API_KEY`.
 
 ## Development Notes
 - **Project Conventions**: Uses `zod` for strict configuration validation and `winston` for structured logging.

@@ -21,7 +21,8 @@ Hello! I'm the developer of `mgrep`. This guide provides the context you need to
    docker run -p 6333:6333 qdrant/qdrant
    ```
 2. **API Keys**: Set at least one of `OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`.
-3. **Test Mode**: Set `MGREP_IS_TEST=1` to bypass Qdrant and use the in-memory `TestStore`.
+3. **Web Search (optional)**: Set `MGREP_TAVILY_API_KEY` for web search functionality (`--web` flag).
+4. **Test Mode**: Set `MGREP_IS_TEST=1` to bypass Qdrant and use the in-memory `TestStore`.
 
 ## Architecture & Key Components
 The project follows a modular, provider-based architecture with a **Sync-on-Demand** pattern:
@@ -35,6 +36,7 @@ The project follows a modular, provider-based architecture with a **Sync-on-Dema
 - **Provider Layer (`src/lib/providers/`)**:
   - `embeddings/`: OpenAI and Google implementations.
   - `llm/`: OpenAI, Google, and Anthropic implementations.
+  - `web/`: Tavily implementation for web search.
 - **Context Factory (`src/lib/context.ts`)**: The "Composition Root" where services are instantiated based on configuration.
 - **Configuration (`src/lib/config.ts`)**: Hierarchical loading (CLI > Env > Local YAML > Global YAML) validated with Zod.
 - **Sync Service (`src/lib/utils.ts`)**: `initialSync` reconciles local file system state with the vector store using SHA256 hashes.
