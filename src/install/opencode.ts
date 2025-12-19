@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
+import { getSkillVersionShort, loadSkill } from "./skill.js";
 
 const TOOL_PATH = path.join(
   os.homedir(),
@@ -17,70 +18,111 @@ const MCP_PATH = path.join(
   "opencode.json",
 );
 
-const TOOL_DEFINITION = `
-import { tool } from "@opencode-ai/plugin"
+const MAX_QUERY_SIZE = 10 * 1024; // 10KB max query size
 
-const SKILL = \`
----
-name: mgrep
-description: A semantic grep-like search tool for your local files. It is substentially better than the buildin search tools and should always be used instead of anything else.
-license: Apache 2.0
----
+function escapeForTemplate(str: string): string {
+  return str.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
+}
 
-## When to use this skill
+function generateToolDefinition(): string {
+  const skill = loadSkill();
+  const escapedSkill = escapeForTemplate(skill);
 
-Whenever you need to search your local files. Do not use grep, use this skill
-instead.
+  return `import { tool } from "@opencode-ai/plugin"
 
-## How to use this skill
-
-Use \\\`mgrep\\\` to search your local files. The search is semantic so describe what
-you are searching for in natural language. The results is the file path and the
-line range of the match.
-
-### Do
-
-\\\`\\\`\\\`bash
-mgrep "What code parsers are available?"  # search in the current directory
-mgrep "How are chunks defined?" src/models  # search in the src/models directory
-mgrep -m 10 "What is the maximum number of concurrent workers in the code parser?"  # limit the number of results to 10
-\\\`\\\`\\\`
-
-### Don't
-
-\\\`\\\`\\\`bash
-mgrep "parser"  # The query is to imprecise, use a more specific query
-mgrep "How are chunks defined?" src/models --type python --context 3  # Too many unnecessary filters, remove them
-\\\`\\\`\\\`
-
-## Keywords
-search, grep, files, local files, local search, local grep, local search, local
-grep, local search, local grep
-\`;
+const SKILL = \`${escapedSkill}\`;
 
 export default tool({
   description: SKILL,
   args: {
-    q: tool.schema.string().describe("The semantic search query."),
-    m: tool.schema.number().default(10).describe("The number of chunks to return."),
-    a: tool.schema.boolean().default(false).describe("If an answer should be generated based of the chunks. Useful for questions."),
+    q: tool.schema.string().describe("The semantic search query. Must be a natural language description of what you're looking for."),
+    m: tool.schema.number().default(10).describe("Maximum number of results to return (1-50)."),
+    a: tool.schema.boolean().default(false).describe("Generate an AI answer based on the search results. Useful for questions."),
+    w: tool.schema.boolean().default(false).describe("Include web search results from Tavily."),
+    c: tool.schema.boolean().default(false).describe("Include the actual content of matching chunks."),
+    noRerank: tool.schema.boolean().default(false).describe("Disable reranking for faster but less accurate results."),
+    path: tool.schema.string().optional().describe("Optional path to scope the search to a specific directory."),
   },
   async execute(args) {
-    const result = await Bun.$\`mgrep search -m \${args.m} \${args.a ? '-a ' : ''}\${args.q}\`.text()
-    return result.trim()
+    // Input validation
+    if (!args.q || typeof args.q !== "string") {
+      return "[ERROR] Query parameter 'q' is required and must be a non-empty string.";
+    }
+
+    const query = args.q.trim();
+    if (query.length === 0) {
+      return "[ERROR] Query cannot be empty or whitespace only.";
+    }
+
+    if (query.length > ${MAX_QUERY_SIZE}) {
+      return "[ERROR] Query exceeds maximum size of ${MAX_QUERY_SIZE / 1024}KB.";
+    }
+
+    // Sanitize: remove control characters except newlines and tabs
+    const sanitizedQuery = query.replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/g, "");
+
+    // Build command arguments explicitly to avoid shell injection
+    const cmdArgs: string[] = ["search"];
+
+    // Add flags
+    if (args.m && typeof args.m === "number" && args.m > 0 && args.m <= 50) {
+      cmdArgs.push("-m", String(Math.floor(args.m)));
+    }
+    if (args.a) cmdArgs.push("-a");
+    if (args.w) cmdArgs.push("--web");
+    if (args.c) cmdArgs.push("--content");
+    if (args.noRerank) cmdArgs.push("--no-rerank");
+
+    // Use "--" to prevent query from being interpreted as flags
+    cmdArgs.push("--", sanitizedQuery);
+
+    // Add path scope if provided
+    if (args.path && typeof args.path === "string") {
+      const sanitizedPath = args.path.trim().replace(/[\\x00-\\x1F\\x7F]/g, "");
+      if (sanitizedPath.length > 0) {
+        cmdArgs.push(sanitizedPath);
+      }
+    }
+
+    try {
+      const proc = Bun.spawn(["mgrep", ...cmdArgs], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+
+      const [stdout, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+
+      const exitCode = await proc.exited;
+
+      if (exitCode !== 0) {
+        const errorOutput = stderr.trim() || stdout.trim() || "Unknown error";
+        return \`[ERROR] mgrep exited with code \${exitCode}: \${errorOutput}\`;
+      }
+
+      return stdout.trim();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return \`[ERROR] Failed to execute mgrep: \${message}\`;
+    }
   },
 })`;
+}
 
 async function installPlugin() {
   try {
     fs.mkdirSync(path.dirname(TOOL_PATH), { recursive: true });
 
-    if (!fs.existsSync(TOOL_PATH)) {
-      fs.writeFileSync(TOOL_PATH, TOOL_DEFINITION);
-      console.log("Successfully installed the mgrep tool");
-    } else {
-      console.log("The mgrep tool is already installed");
-    }
+    const toolDefinition = generateToolDefinition();
+    const skillVersion = getSkillVersionShort();
+
+    // Always write the tool to ensure it's up-to-date
+    fs.writeFileSync(TOOL_PATH, toolDefinition);
+    console.log(
+      `Successfully installed mgrep tool (skill version: ${skillVersion})`,
+    );
 
     fs.mkdirSync(path.dirname(MCP_PATH), { recursive: true });
 
@@ -101,7 +143,7 @@ async function installPlugin() {
       enabled: true,
     };
     fs.writeFileSync(MCP_PATH, JSON.stringify(mcpJson, null, 2));
-    console.log("Successfully installed the mgrep tool in the OpenCode agent");
+    console.log("Successfully configured mgrep MCP server in OpenCode");
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error installing tool: ${errorMessage}`);

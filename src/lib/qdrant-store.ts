@@ -79,7 +79,9 @@ export class QdrantStore implements Store {
     const parsedUrl = new URL(config.url);
     const isHttps = parsedUrl.protocol === "https:";
     const defaultPort = isHttps ? 443 : 80;
-    const port = parsedUrl.port ? Number.parseInt(parsedUrl.port, 10) : defaultPort;
+    const port = parsedUrl.port
+      ? Number.parseInt(parsedUrl.port, 10)
+      : defaultPort;
 
     this.client = new QdrantClient({
       host: parsedUrl.hostname,

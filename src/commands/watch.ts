@@ -1,7 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Command, InvalidArgumentError } from "commander";
-import { type CliConfigOptions, loadConfig } from "../lib/config.js";
+import {
+  type CliConfigOptions,
+  getConfigPaths,
+  loadConfig,
+  type MgrepConfig,
+  reloadConfig,
+} from "../lib/config.js";
 import { createFileSystem, createStore } from "../lib/context.js";
 import { DEFAULT_IGNORE_PATTERNS } from "../lib/file.js";
 import {
@@ -9,6 +15,8 @@ import {
   formatDryRunSummary,
 } from "../lib/sync-helpers.js";
 import { deleteFile, initialSync, uploadFile } from "../lib/utils.js";
+
+const CONFIG_RELOAD_DEBOUNCE_MS = 500;
 
 export interface WatchOptions {
   store: string;
@@ -27,7 +35,9 @@ export async function startWatch(options: WatchOptions): Promise<void> {
     const cliOptions: CliConfigOptions = {
       maxFileSize: options.maxFileSize,
     };
-    const config = loadConfig(watchRoot, cliOptions);
+
+    // Mutable config that can be reloaded
+    let currentConfig: MgrepConfig = loadConfig(watchRoot, cliOptions);
     console.debug("Watching for file changes in", watchRoot);
 
     const { spinner, onProgress } = createIndexingSpinner(watchRoot);
@@ -48,7 +58,7 @@ export async function startWatch(options: WatchOptions): Promise<void> {
         watchRoot,
         options.dryRun,
         onProgress,
-        config,
+        currentConfig,
       );
       const deletedInfo =
         result.deleted > 0 ? ` • deleted ${result.deleted}` : "";
@@ -81,12 +91,60 @@ export async function startWatch(options: WatchOptions): Promise<void> {
 
     console.log("Watching for file changes in", watchRoot);
     fileSystem.loadMgrepignore(watchRoot);
+
+    // Set up config file watchers for hot reload
+    const configPaths = getConfigPaths(watchRoot);
+    let configReloadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const reloadConfigDebounced = () => {
+      if (configReloadTimeout) {
+        clearTimeout(configReloadTimeout);
+      }
+      configReloadTimeout = setTimeout(() => {
+        const newConfig = reloadConfig(watchRoot, cliOptions);
+        if (newConfig) {
+          currentConfig = newConfig;
+          console.log("Configuration reloaded successfully");
+        } else {
+          console.warn("Config reload failed, keeping previous configuration");
+        }
+      }, CONFIG_RELOAD_DEBOUNCE_MS);
+    };
+
+    // Watch each config file path
+    for (const configPath of configPaths) {
+      const configDir = path.dirname(configPath);
+      const configFile = path.basename(configPath);
+
+      // Only watch if directory exists
+      if (fs.existsSync(configDir)) {
+        try {
+          fs.watch(configDir, (_eventType, filename) => {
+            if (filename === configFile) {
+              console.debug(`Config file changed: ${configPath}`);
+              reloadConfigDebounced();
+            }
+          });
+        } catch {
+          // Directory might not be watchable, ignore
+        }
+      }
+    }
+
+    // Watch for file changes in the project
     fs.watch(watchRoot, { recursive: true }, (eventType, rawFilename) => {
       const filename = rawFilename?.toString();
       if (!filename) {
         return;
       }
       const filePath = path.join(watchRoot, filename);
+
+      // Check if this is a config file change
+      if (configPaths.includes(filePath)) {
+        console.debug(`Config file changed: ${filePath}`);
+        reloadConfigDebounced();
+        return;
+      }
 
       if (fileSystem.isIgnored(filePath, watchRoot)) {
         return;
@@ -98,7 +156,7 @@ export async function startWatch(options: WatchOptions): Promise<void> {
           return;
         }
 
-        uploadFile(store, options.store, filePath, filename, config)
+        uploadFile(store, options.store, filePath, filename, currentConfig)
           .then((didUpload) => {
             if (didUpload) {
               console.log(`${eventType}: ${filePath}`);

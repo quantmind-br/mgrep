@@ -15,5 +15,6 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "moduleResolution": "NodeNext"
-  }
+  },
+  "exclude": ["node_modules", "dist", "tavily-mcp", "test"]
 }

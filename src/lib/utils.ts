@@ -5,10 +5,19 @@ import { isText } from "istextorbinary";
 import pLimit from "p-limit";
 import { exceedsMaxFileSize, loadConfig, type MgrepConfig } from "./config.js";
 import type { FileSystem } from "./file.js";
-import type { Store } from "./store.js";
+import type { FileMetadata, Store } from "./store.js";
 import type { InitialSyncProgress, InitialSyncResult } from "./sync-helpers.js";
 
 export const isTest = process.env.MGREP_IS_TEST === "1";
+
+/**
+ * Extended file metadata including size and mtime for sync optimization.
+ */
+export interface StoreFileMetadata {
+  hash: string;
+  size?: number;
+  mtimeMs?: number;
+}
 
 function isSubpath(parent: string, child: string): boolean {
   const parentPath = path.resolve(parent);
@@ -42,7 +51,38 @@ export function isDevelopment(): boolean {
 }
 
 /**
+ * Lists file metadata from the store, optionally filtered by path prefix.
+ * Returns extended metadata including size and mtime for sync optimization.
+ *
+ * @param store - The store instance
+ * @param storeId - The ID of the store
+ * @param pathPrefix - Optional path prefix to filter files
+ * @returns A map of external IDs to their metadata
+ */
+export async function listStoreFileMetadata(
+  store: Store,
+  storeId: string,
+  pathPrefix?: string,
+): Promise<Map<string, StoreFileMetadata>> {
+  const byExternalId = new Map<string, StoreFileMetadata>();
+  for await (const file of store.listFiles(storeId, { pathPrefix })) {
+    const externalId = file.external_id ?? undefined;
+    if (!externalId) continue;
+    const metadata = file.metadata;
+    if (metadata && typeof metadata.hash === "string") {
+      byExternalId.set(externalId, {
+        hash: metadata.hash,
+        size: metadata.size,
+        mtimeMs: metadata.mtimeMs,
+      });
+    }
+  }
+  return byExternalId;
+}
+
+/**
  * Lists file hashes from the store, optionally filtered by path prefix.
+ * @deprecated Use listStoreFileMetadata instead for better sync optimization
  *
  * @param store - The store instance
  * @param storeId - The ID of the store
@@ -54,16 +94,8 @@ export async function listStoreFileHashes(
   storeId: string,
   pathPrefix?: string,
 ): Promise<Map<string, string | undefined>> {
-  const byExternalId = new Map<string, string | undefined>();
-  for await (const file of store.listFiles(storeId, { pathPrefix })) {
-    const externalId = file.external_id ?? undefined;
-    if (!externalId) continue;
-    const metadata = file.metadata;
-    const hash: string | undefined =
-      metadata && typeof metadata.hash === "string" ? metadata.hash : undefined;
-    byExternalId.set(externalId, hash);
-  }
-  return byExternalId;
+  const metadata = await listStoreFileMetadata(store, storeId, pathPrefix);
+  return new Map(Array.from(metadata.entries()).map(([k, v]) => [k, v.hash]));
 }
 
 export async function deleteFile(
@@ -74,30 +106,46 @@ export async function deleteFile(
   await store.deleteFile(storeId, filePath);
 }
 
+export interface UploadFileWithStatOptions {
+  /** Pre-computed file stats to avoid duplicate stat calls */
+  stat?: fs.Stats;
+  /** Pre-read buffer to avoid duplicate read calls */
+  buffer?: Buffer;
+}
+
 export async function uploadFile(
   store: Store,
   storeId: string,
   filePath: string,
   fileName: string,
   config?: MgrepConfig,
+  uploadOptions?: UploadFileWithStatOptions,
 ): Promise<boolean> {
   if (config && exceedsMaxFileSize(filePath, config.maxFileSize)) {
     return false;
   }
 
-  const buffer = await fs.promises.readFile(filePath);
+  // Use provided buffer or read from disk
+  const buffer =
+    uploadOptions?.buffer ?? (await fs.promises.readFile(filePath));
   if (buffer.length === 0) {
     return false;
   }
 
+  // Use provided stat or get from disk
+  const stat = uploadOptions?.stat ?? (await fs.promises.stat(filePath));
+
   const hash = computeBufferHash(buffer);
+  const metadata: FileMetadata = {
+    path: filePath,
+    hash,
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+  };
   const options = {
     external_id: filePath,
     overwrite: true,
-    metadata: {
-      path: filePath,
-      hash,
-    },
+    metadata,
   };
 
   try {
@@ -112,11 +160,31 @@ export async function uploadFile(
     }
     await store.uploadFile(
       storeId,
-      new File([buffer], fileName, { type: "text/plain" }),
+      new File([new Uint8Array(buffer)], fileName, { type: "text/plain" }),
       options,
     );
   }
   return true;
+}
+
+/**
+ * Checks if file can be skipped based on size/mtime metadata match.
+ * This is a heuristic optimization - if size and mtime match, we skip the expensive hash comparison.
+ *
+ * Trade-off: A file touched without content change (e.g., `touch`) will have different mtime
+ * but same hash, causing unnecessary re-upload. This is acceptable for the performance gain.
+ */
+function canSkipByMetadata(
+  stat: fs.Stats,
+  storedMeta: StoreFileMetadata,
+): boolean {
+  // If stored metadata doesn't have size/mtime, we can't optimize
+  if (storedMeta.size === undefined || storedMeta.mtimeMs === undefined) {
+    return false;
+  }
+
+  // Compare size and mtime
+  return stat.size === storedMeta.size && stat.mtimeMs === storedMeta.mtimeMs;
 }
 
 export async function initialSync(
@@ -128,14 +196,14 @@ export async function initialSync(
   onProgress?: (info: InitialSyncProgress) => void,
   config?: MgrepConfig,
 ): Promise<InitialSyncResult> {
-  const storeHashes = await listStoreFileHashes(store, storeId, repoRoot);
+  const storeMetadata = await listStoreFileMetadata(store, storeId, repoRoot);
   const allFiles = Array.from(fileSystem.getFiles(repoRoot));
   const repoFiles = allFiles.filter(
     (filePath) => !fileSystem.isIgnored(filePath, repoRoot),
   );
   const repoFileSet = new Set(repoFiles);
 
-  const filesToDelete = Array.from(storeHashes.keys()).filter(
+  const filesToDelete = Array.from(storeMetadata.keys()).filter(
     (filePath) => isSubpath(repoRoot, filePath) && !repoFileSet.has(filePath),
   );
 
@@ -167,11 +235,32 @@ export async function initialSync(
             return;
           }
 
+          // Get file stats first (needed for metadata optimization and upload)
+          const stat = await fs.promises.stat(filePath);
+          const existingMeta = storeMetadata.get(filePath);
+
+          // Optimization: skip if size and mtime match (no need to read file)
+          if (existingMeta && canSkipByMetadata(stat, existingMeta)) {
+            processed += 1;
+            onProgress?.({
+              processed,
+              uploaded,
+              deleted,
+              errors,
+              total,
+              filePath,
+            });
+            return;
+          }
+
+          // Need to read file and compare hash
           const buffer = await fs.promises.readFile(filePath);
           const hash = computeBufferHash(buffer);
-          const existingHash = storeHashes.get(filePath);
           processed += 1;
-          const shouldUpload = !existingHash || existingHash !== hash;
+
+          // Check if hash changed (or file is new / needs migration)
+          const shouldUpload = !existingMeta || existingMeta.hash !== hash;
+
           if (dryRun && shouldUpload) {
             console.log("Dry run: would have uploaded", filePath);
             uploaded += 1;
@@ -182,6 +271,7 @@ export async function initialSync(
               filePath,
               path.basename(filePath),
               config,
+              { stat, buffer },
             );
             if (didUpload) {
               uploaded += 1;
@@ -196,6 +286,7 @@ export async function initialSync(
             filePath,
           });
         } catch (err) {
+          processed += 1;
           errors += 1;
           const errorMessage = err instanceof Error ? err.message : String(err);
           onProgress?.({

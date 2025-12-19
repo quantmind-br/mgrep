@@ -3,6 +3,14 @@ import * as fs from "node:fs/promises";
 export interface FileMetadata {
   path: string;
   hash: string;
+  /**
+   * File size in bytes (optional, for sync optimization)
+   */
+  size?: number;
+  /**
+   * File modification time in milliseconds (optional, for sync optimization)
+   */
+  mtimeMs?: number;
 }
 
 /**

@@ -162,13 +162,31 @@ function findConfig(candidates: string[]): Partial<MgrepConfig> | null {
   return null;
 }
 
-function getGlobalConfigPaths(): string[] {
+/**
+ * Returns all global config file paths that are checked.
+ */
+export function getGlobalConfigPaths(): string[] {
   const configDir = path.join(os.homedir(), GLOBAL_CONFIG_DIR);
   return GLOBAL_CONFIG_FILES.map((file) => path.join(configDir, file));
 }
 
-function getLocalConfigPaths(dir: string): string[] {
+/**
+ * Returns all local config file paths that would be checked for a given directory.
+ *
+ * @param dir - The directory to get local config paths for
+ */
+export function getLocalConfigPaths(dir: string): string[] {
   return LOCAL_CONFIG_FILES.map((file) => path.join(dir, file));
+}
+
+/**
+ * Returns all config file paths (local + global) that would be checked.
+ * Useful for setting up file watchers.
+ *
+ * @param dir - The directory to get config paths for
+ */
+export function getConfigPaths(dir: string): string[] {
+  return [...getLocalConfigPaths(dir), ...getGlobalConfigPaths()];
 }
 
 /**
@@ -359,6 +377,73 @@ function filterUndefinedCliOptions(
  */
 export function clearConfigCache(): void {
   configCache.clear();
+}
+
+export interface LoadConfigOptions {
+  /**
+   * If true, bypasses the cache and reloads from disk.
+   * @default false
+   */
+  reload?: boolean;
+}
+
+/**
+ * Loads configuration with options.
+ *
+ * @param dir - The directory to load local configuration from
+ * @param cliOptions - CLI options that override all other config sources
+ * @param options - Additional loading options
+ * @returns The merged configuration, or null if reload failed
+ */
+export function loadConfigWithOptions(
+  dir: string,
+  cliOptions: CliConfigOptions = {},
+  options: LoadConfigOptions = {},
+): MgrepConfig | null {
+  const absoluteDir = path.resolve(dir);
+  const cacheKey = `${absoluteDir}:${JSON.stringify(cliOptions)}`;
+
+  if (options.reload) {
+    configCache.delete(cacheKey);
+  } else if (configCache.has(cacheKey)) {
+    return configCache.get(cacheKey) as MgrepConfig;
+  }
+
+  try {
+    const globalConfig = findConfig(getGlobalConfigPaths());
+    const localConfig = findConfig(getLocalConfigPaths(absoluteDir));
+    const envConfig = loadEnvConfig();
+
+    const config: MgrepConfig = deepMergeConfig(
+      DEFAULT_CONFIG,
+      globalConfig || {},
+      localConfig || {},
+      envConfig,
+      filterUndefinedCliOptions(cliOptions),
+    );
+
+    configCache.set(cacheKey, config);
+    return config;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to reload config: ${message}`);
+    return null;
+  }
+}
+
+/**
+ * Reloads configuration from disk, bypassing the cache.
+ * If the reload fails, returns null (caller should keep previous config).
+ *
+ * @param dir - The directory to load local configuration from
+ * @param cliOptions - CLI options that override all other config sources
+ * @returns The new configuration, or null if reload failed
+ */
+export function reloadConfig(
+  dir: string,
+  cliOptions: CliConfigOptions = {},
+): MgrepConfig | null {
+  return loadConfigWithOptions(dir, cliOptions, { reload: true });
 }
 
 /**
