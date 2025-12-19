@@ -6,8 +6,13 @@ import {
   loadConfig,
   type MgrepConfig,
 } from "../lib/config.js";
-import { createFileSystem, createStore } from "../lib/context.js";
+import {
+  createFileSystem,
+  createStore,
+  createWebSearchClientFromConfig,
+} from "../lib/context.js";
 import { DEFAULT_IGNORE_PATTERNS } from "../lib/file.js";
+import type { WebSearchClient } from "../lib/providers/web/index.js";
 import type {
   AskResponse,
   ChunkType,
@@ -135,6 +140,34 @@ function parseBooleanEnv(
 }
 
 /**
+ * Performs a web search using Tavily and returns results as ChunkType array
+ */
+async function performWebSearch(
+  webClient: WebSearchClient,
+  query: string,
+  maxResults: number,
+): Promise<TextChunk[]> {
+  const response = await webClient.search(query, { maxResults });
+
+  return response.results.map((result, index) => ({
+    type: "text" as const,
+    text: result.content,
+    score: result.score,
+    filename: result.url,
+    metadata: {
+      path: result.url,
+      hash: "",
+      title: result.title,
+    },
+    chunk_index: index,
+    generated_metadata: {
+      start_line: 0,
+      num_lines: result.content.split("\n").length,
+    },
+  }));
+}
+
+/**
  * Syncs local files to the store with progress indication.
  * @returns true if the caller should return early (dry-run mode), false otherwise
  */
@@ -223,6 +256,11 @@ export const search: Command = new CommanderCommand("search")
     parseBooleanEnv(process.env.MGREP_RERANK, true), // `true` here means that reranking is enabled by default
   )
   .option(
+    "-w, --web",
+    "Include web search results using Tavily",
+    parseBooleanEnv(process.env.MGREP_WEB, false),
+  )
+  .option(
     "--max-file-size <bytes>",
     "Maximum file size in bytes to upload",
     (value) => {
@@ -246,6 +284,7 @@ export const search: Command = new CommanderCommand("search")
       sync: boolean;
       dryRun: boolean;
       rerank: boolean;
+      web: boolean;
       maxFileSize?: number;
     } = cmd.optsWithGlobals();
     if (exec_path?.startsWith("--")) {
@@ -290,24 +329,55 @@ export const search: Command = new CommanderCommand("search")
         ],
       };
 
+      const maxCount = parseInt(options.maxCount, 10);
+
+      // Perform web search if enabled
+      let webResults: TextChunk[] = [];
+      if (options.web) {
+        try {
+          const webClient = createWebSearchClientFromConfig(config.tavily);
+          webResults = await performWebSearch(webClient, pattern, maxCount);
+        } catch (webError) {
+          const webMessage =
+            webError instanceof Error ? webError.message : "Unknown error";
+          console.error(`Web search failed: ${webMessage}`);
+          // Continue with local search even if web search fails
+        }
+      }
+
       let response: string;
       if (!options.answer) {
         const results = await store.search(
           storeIds,
           pattern,
-          parseInt(options.maxCount, 10),
+          maxCount,
           { rerank: options.rerank },
           filters,
         );
+
+        // Combine local and web results
+        if (webResults.length > 0) {
+          const combinedData = [...results.data, ...webResults];
+          // Sort by score and take top maxCount
+          combinedData.sort((a, b) => b.score - a.score);
+          results.data = combinedData.slice(0, maxCount);
+        }
+
         response = formatSearchResponse(results, options.content);
       } else {
         const results = await store.ask(
           storeIds,
           pattern,
-          parseInt(options.maxCount, 10),
+          maxCount,
           { rerank: options.rerank },
           filters,
         );
+
+        // Add web results to sources for RAG
+        if (webResults.length > 0) {
+          results.sources = [...results.sources, ...webResults];
+        }
+
         response = formatAskResponse(results, options.content);
       }
 

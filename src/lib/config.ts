@@ -44,12 +44,21 @@ const SyncConfigSchema = z.object({
   concurrency: z.number().int().positive().default(20),
 });
 
+const TavilyConfigSchema = z.object({
+  apiKey: z.string().optional(),
+  maxResults: z.number().int().positive().default(10),
+  searchDepth: z.enum(["basic", "advanced"]).default("basic"),
+  includeImages: z.boolean().default(false),
+  includeRawContent: z.boolean().default(false),
+});
+
 const ConfigSchema = z.object({
   maxFileSize: z.number().positive().optional(),
   qdrant: QdrantConfigSchema.default({}),
   embeddings: EmbeddingsConfigSchema.default({}),
   llm: LLMConfigSchema.default({}),
   sync: SyncConfigSchema.default({}),
+  tavily: TavilyConfigSchema.default({}),
 });
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
@@ -57,6 +66,7 @@ export type EmbeddingsConfig = z.infer<typeof EmbeddingsConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 export type QdrantConfig = z.infer<typeof QdrantConfigSchema>;
 export type SyncConfig = z.infer<typeof SyncConfigSchema>;
+export type TavilyConfig = z.infer<typeof TavilyConfigSchema>;
 
 /**
  * CLI options that can override config
@@ -91,6 +101,10 @@ export interface MgrepConfig {
    * Sync configuration
    */
   sync: SyncConfig;
+  /**
+   * Tavily web search configuration
+   */
+  tavily: TavilyConfig;
 }
 
 const DEFAULT_CONFIG: MgrepConfig = {
@@ -116,6 +130,12 @@ const DEFAULT_CONFIG: MgrepConfig = {
   },
   sync: {
     concurrency: 20,
+  },
+  tavily: {
+    maxResults: 10,
+    searchDepth: "basic",
+    includeImages: false,
+    includeRawContent: false,
   },
 };
 
@@ -281,6 +301,24 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     }
   }
 
+  // Tavily
+  const tavilyApiKey = process.env[`${ENV_PREFIX}TAVILY_API_KEY`];
+  const tavilyMaxResults = process.env[`${ENV_PREFIX}TAVILY_MAX_RESULTS`];
+  const tavilySearchDepth = process.env[`${ENV_PREFIX}TAVILY_SEARCH_DEPTH`];
+  if (tavilyApiKey || tavilyMaxResults || tavilySearchDepth) {
+    config.tavily = {
+      apiKey: tavilyApiKey,
+      maxResults: tavilyMaxResults
+        ? Number.parseInt(tavilyMaxResults, 10)
+        : DEFAULT_CONFIG.tavily.maxResults,
+      searchDepth:
+        (tavilySearchDepth as "basic" | "advanced") ||
+        DEFAULT_CONFIG.tavily.searchDepth,
+      includeImages: DEFAULT_CONFIG.tavily.includeImages,
+      includeRawContent: DEFAULT_CONFIG.tavily.includeRawContent,
+    };
+  }
+
   return config;
 }
 
@@ -297,6 +335,7 @@ function deepMergeConfig(
     embeddings: { ...target.embeddings },
     llm: { ...target.llm },
     sync: { ...target.sync },
+    tavily: { ...target.tavily },
   };
 
   for (const source of sources) {
@@ -316,6 +355,9 @@ function deepMergeConfig(
     }
     if (source.sync) {
       result.sync = { ...result.sync, ...source.sync };
+    }
+    if (source.tavily) {
+      result.tavily = { ...result.tavily, ...source.tavily };
     }
   }
 

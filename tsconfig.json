@@ -16,5 +16,6 @@
     "skipLibCheck": true,
     "moduleResolution": "NodeNext"
   },
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tavily-mcp", "test"]
 }
