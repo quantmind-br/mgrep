@@ -1,4 +1,4 @@
-import { loadConfig } from "./config.js";
+import { type TavilyConfig, loadConfig } from "./config.js";
 import {
   type FileSystem,
   type FileSystemOptions,
@@ -6,6 +6,10 @@ import {
 } from "./file.js";
 import { type Git, NodeGit } from "./git.js";
 import { createEmbeddingsClient, createLLMClient } from "./providers/index.js";
+import {
+  type WebSearchClient,
+  createWebSearchClient,
+} from "./providers/web/index.js";
 import { QdrantStore } from "./qdrant-store.js";
 import { type Store, TestStore } from "./store.js";
 
@@ -51,4 +55,20 @@ export function createFileSystem(
   options: FileSystemOptions = { ignorePatterns: [] },
 ): FileSystem {
   return new NodeFileSystem(createGit(), options);
+}
+
+/**
+ * Creates a WebSearchClient instance for Tavily
+ */
+export function createWebSearchClientFromConfig(
+  tavilyConfig: TavilyConfig,
+): WebSearchClient {
+  return createWebSearchClient({
+    provider: "tavily",
+    apiKey: tavilyConfig.apiKey,
+    maxResults: tavilyConfig.maxResults,
+    searchDepth: tavilyConfig.searchDepth,
+    includeImages: tavilyConfig.includeImages,
+    includeRawContent: tavilyConfig.includeRawContent,
+  });
 }
