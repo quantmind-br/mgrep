@@ -226,15 +226,17 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     }
   }
 
-  // Qdrant
+  // Qdrant - only set fields that are explicitly defined in env vars
   const qdrantUrl = process.env[`${ENV_PREFIX}QDRANT_URL`];
   const qdrantApiKey = process.env[`${ENV_PREFIX}QDRANT_API_KEY`];
   const qdrantPrefix = process.env[`${ENV_PREFIX}QDRANT_COLLECTION_PREFIX`];
   if (qdrantUrl || qdrantApiKey || qdrantPrefix) {
-    config.qdrant = {
-      url: qdrantUrl || DEFAULT_CONFIG.qdrant.url,
-      apiKey: qdrantApiKey,
-      collectionPrefix: qdrantPrefix || DEFAULT_CONFIG.qdrant.collectionPrefix,
+    // Only include fields that are explicitly set in environment variables
+    // This allows file configs to provide the base values
+    (config as { qdrant?: Partial<QdrantConfig> }).qdrant = {
+      ...(qdrantUrl && { url: qdrantUrl }),
+      ...(qdrantApiKey && { apiKey: qdrantApiKey }),
+      ...(qdrantPrefix && { collectionPrefix: qdrantPrefix }),
     };
   }
 
