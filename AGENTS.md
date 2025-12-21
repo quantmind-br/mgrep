@@ -1,59 +1,78 @@
 # AGENTS.md - Universal AI Agent Configuration
 
 ## Project Overview
-`mgrep` is a TypeScript-based CLI tool for semantic code search, web search, and RAG-based question answering. It synchronizes local file systems with a Qdrant vector database and supports multiple AI providers (OpenAI, Google, Anthropic, Ollama) for embeddings and LLMs. Web search is powered by Tavily.
+`mgrep` is a TypeScript-based CLI tool for semantic code search and RAG-based question answering. It synchronizes local file systems with a Qdrant vector database using a "Sync-on-Demand" pattern. Supports OpenAI, Google, Anthropic, and Ollama.
+
+## Issue Tracking (Beads)
+
+This project uses **bd** (beads) for issue tracking.
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --status in_progress  # Claim work
+bd close <id>         # Complete work
+bd sync               # Sync with git
+```
 
 ## Build & Test Commands
 - **Install**: `npm install`
 - **Build**: `npm run build`
-- **Lint/Format**: `npm run lint` (check) or `npm run lint:write` (fix via Biome)
-- **Test**: `npm run test` (Runs Bats tests; sets `MGREP_IS_TEST=1` for in-memory `TestStore`)
+- **Lint/Format**: `npm run lint` or `npm run lint:write` (Biome)
+- **Test**: `npm run test` (Sets `MGREP_IS_TEST=1` for in-memory `TestStore`)
 - **Run CLI**: `npm run start -- <command>` (via ts-node) or `./bin/run <command>` (built)
+- **Start MCP**: `npm run start -- mcp`
 
 ## Architecture Overview
-- **Pattern**: Sync-on-Demand. Local files are reconciled with the vector store before search/query.
-- **Layers**: CLI (`src/index.ts`) -> Commands (`src/commands/`) -> Service/Library (`src/lib/`) -> Providers.
-- **Core Abstractions**: `Store` interface (`src/lib/store.ts`) implemented by `QdrantStore`.
-- **Provider System**: Strategy pattern for `EmbeddingsClient`, `LLMClient` (OpenAI, Google, Anthropic), and `WebSearchClient` (Tavily).
-- **Composition Root**: `src/lib/context.ts` uses Factory pattern to instantiate all services.
+- **Pattern**: Provider-based Strategy pattern for AI backends and storage.
+- **Composition Root**: `src/lib/context.ts` (Factory pattern) instantiates all services.
+- **Core Layers**: CLI Commands (`src/commands`), Library Logic (`src/lib`), and Providers (`src/lib/providers`).
+- **Storage**: `QdrantStore` handles vector operations, text chunking, and metadata.
 
-## Code Style Conventions
-- **Language**: TypeScript (Strict typing preferred).
-- **Tooling**: Biome for linting and formatting.
-- **Patterns**: Strategy pattern for providers, Factory pattern for service creation, Adapter pattern for FS/Git.
+## Key Conventions & Patterns
+- **Indexing**: Files chunked into 50 lines with 10-line overlap (`QdrantStore.chunkText`).
+- **Deterministic IDs**: Qdrant point IDs are SHA256 hashes of `externalId` + `chunkIndex`.
+- **Filtering**: Uses `path_scopes` (e.g., `["/src", "/src/lib"]`) for efficient directory filtering.
+- **Service Creation**: Use `createStore()` or `createFileSystem()` from `src/lib/context.ts`.
+- **Sync Logic**: `initialSync` in `src/lib/utils.ts` reconciles disk state with Qdrant via SHA256 hashes.
+- **Ignore Rules**: Respects `.gitignore` and `.mgrepignore` via `NodeFileSystem`.
+- **MCP Server**: Stdio transport; redirects `stdout` to `stderr` for clean communication.
 
-## Key Conventions
-- **Service Creation**: Always use `createStore()`, `createGit()`, `createFileSystem()`, or `createWebSearchClientFromConfig()` from `src/lib/context.ts`.
-- **Configuration**: Hierarchical: CLI Flags > Env Vars (`MGREP_*`) > `.mgreprc.yaml` > `~/.config/mgrep/config.yaml`.
-- **Web Search**: Use `--web` flag with `MGREP_TAVILY_API_KEY` or `tavily.apiKey` in config.
-- **Indexing**: Files are chunked (50 lines, 10 overlap) in `QdrantStore.chunkText`.
-- **Deterministic IDs**: Qdrant point IDs are SHA256 hashes of `externalId` + `chunkIndex` for idempotency.
-- **Filtering**: Uses `path_scopes` (e.g., `["/src", "/src/lib"]`) for efficient directory filtering in Qdrant.
-- **Ignore Rules**: Respects `.gitignore` and `.mgrepignore` via `src/lib/file.ts`.
+## MCP Integration
+The MCP server exposes 8 tools for AI agent integration:
 
-## Git Workflows
-- **Branching**: `feat/`, `fix/`, `docs/`, `chore/`.
-- **Commits**: Conventional Commits (e.g., `feat(provider): add deepseek support`).
+| Tool | Description |
+|------|-------------|
+| `mgrep-search` | Semantic search with path filtering and reranking |
+| `mgrep-ask` | RAG Q&A with source citations |
+| `mgrep-web-search` | Web search via Tavily (requires API key) |
+| `mgrep-sync` | Sync local files with vector store |
+| `mgrep-get-file` | Retrieve file content with line range support |
+| `mgrep-list-files` | List indexed files with pagination |
+| `mgrep-get-context` | Get expanded context around a line |
+| `mgrep-stats` | Get store statistics |
+
+## Code Style
+- **Language**: TypeScript (Strict typing).
+- **Format/Lint**: Biome.
+- **Commits**: Conventional Commits (e.g., `feat(provider): add support for x`).
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, complete ALL steps below:
 
 **MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **File issues** for remaining work using `bd create`
+2. **Run quality gates**: `npm run lint` and `npm run test`
+3. **Update issue status**: Close finished work with `bd close <id>`
+4. **PUSH TO REMOTE**:
    ```bash
    git pull --rebase
    bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. **Verify**: All changes committed AND pushed
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
