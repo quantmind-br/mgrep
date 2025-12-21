@@ -1,8 +1,13 @@
 import { TavilyClient } from "./tavily.js";
 import type { WebSearchClient, WebSearchConfig } from "./types.js";
 
-export type { WebSearchClient, WebSearchConfig, WebSearchResponse, WebSearchResult } from "./types.js";
 export { TavilyClient } from "./tavily.js";
+export type {
+  WebSearchClient,
+  WebSearchConfig,
+  WebSearchResponse,
+  WebSearchResult,
+} from "./types.js";
 
 /**
  * Creates a web search client based on the configuration

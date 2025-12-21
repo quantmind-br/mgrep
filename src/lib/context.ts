@@ -1,4 +1,4 @@
-import { type TavilyConfig, loadConfig } from "./config.js";
+import { loadConfig, type TavilyConfig } from "./config.js";
 import {
   type FileSystem,
   type FileSystemOptions,
@@ -7,8 +7,8 @@ import {
 import { type Git, NodeGit } from "./git.js";
 import { createEmbeddingsClient, createLLMClient } from "./providers/index.js";
 import {
-  type WebSearchClient,
   createWebSearchClient,
+  type WebSearchClient,
 } from "./providers/web/index.js";
 import { QdrantStore } from "./qdrant-store.js";
 import { type Store, TestStore } from "./store.js";

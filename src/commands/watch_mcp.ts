@@ -1,3 +1,4 @@
+import { join, normalize } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -8,7 +9,6 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Command } from "commander";
-import { join, normalize } from "node:path";
 import { loadConfig } from "../lib/config.js";
 import {
   createFileSystem,
@@ -88,8 +88,9 @@ function formatSearchResultsForMcp(
     return "No results found.";
   }
 
-  const results = response.data.map((chunk, index) =>
-    `${index + 1}. ${formatChunkForMcp(chunk, includeContent, pwd)}`,
+  const results = response.data.map(
+    (chunk, index) =>
+      `${index + 1}. ${formatChunkForMcp(chunk, includeContent, pwd)}`,
   );
 
   return `Found ${response.data.length} result(s):\n\n${results.join("\n\n")}`;
@@ -527,7 +528,8 @@ export const watchMcp = new Command("mcp")
                 ],
               };
             } catch (error) {
-              const msg = error instanceof Error ? error.message : String(error);
+              const msg =
+                error instanceof Error ? error.message : String(error);
               throw new McpError(
                 ErrorCode.InternalError,
                 `Web search failed: ${msg}`,
@@ -553,8 +555,7 @@ export const watchMcp = new Command("mcp")
               } catch {
                 await store.create({
                   name: options.store,
-                  description:
-                    "mgrep store - Semantic search for local files",
+                  description: "mgrep store - Semantic search for local files",
                 });
               }
 
@@ -573,7 +574,9 @@ export const watchMcp = new Command("mcp")
                 `Sync ${dryRun ? "(dry run) " : ""}complete:`,
                 `- Files processed: ${result.processed}/${result.total}`,
                 `- Files ${action}: ${result.uploaded}`,
-                result.deleted > 0 ? `- Files deleted: ${result.deleted}` : null,
+                result.deleted > 0
+                  ? `- Files deleted: ${result.deleted}`
+                  : null,
                 result.errors > 0 ? `- Errors: ${result.errors}` : null,
               ]
                 .filter(Boolean)
@@ -588,7 +591,8 @@ export const watchMcp = new Command("mcp")
                 ],
               };
             } catch (error) {
-              const msg = error instanceof Error ? error.message : String(error);
+              const msg =
+                error instanceof Error ? error.message : String(error);
               throw new McpError(
                 ErrorCode.InternalError,
                 `Sync failed: ${msg}`,
@@ -625,7 +629,10 @@ export const watchMcp = new Command("mcp")
 
     // Connect server
     await server.connect(transport);
-    console.log("[MCP] Server started with tools:", MGREP_TOOLS.map(t => t.name).join(", "));
+    console.log(
+      "[MCP] Server started with tools:",
+      MGREP_TOOLS.map((t) => t.name).join(", "),
+    );
 
     // Start background sync after delay
     const startBackgroundSync = async () => {

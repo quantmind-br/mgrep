@@ -20,6 +20,10 @@
     "postbuild": "chmod +x dist/index.js && cp -r plugins dist/",
     "dev": "npx tsc && node dist/index.js",
     "test": "bats test/test.bats --filter-tags !long-running",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:all": "npm run test:unit && npm run test",
     "format": "biome check --write .",
     "format:check": "biome check .",
     "lint": "biome lint --check .",
@@ -60,10 +64,12 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.4",
     "@types/node": "^24.10.0",
+    "@vitest/coverage-v8": "^4.0.16",
     "bats": "^1.13.0",
     "bats-assert": "github:ztombol/bats-assert",
     "bats-support": "github:ztombol/bats-support",
     "husky": "^9.1.7",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
   }
 }

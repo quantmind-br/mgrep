@@ -238,31 +238,33 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     };
   }
 
-  // Embeddings
+  // Embeddings - only set fields that are explicitly defined in env vars
   const embProvider = process.env[`${ENV_PREFIX}EMBEDDINGS_PROVIDER`];
   const embModel = process.env[`${ENV_PREFIX}EMBEDDINGS_MODEL`];
   const embBaseUrl = process.env[`${ENV_PREFIX}EMBEDDINGS_BASE_URL`];
   const embApiKey = process.env[`${ENV_PREFIX}EMBEDDINGS_API_KEY`];
   const embTimeoutMs = process.env[`${ENV_PREFIX}EMBEDDINGS_TIMEOUT_MS`];
   const embMaxRetries = process.env[`${ENV_PREFIX}EMBEDDINGS_MAX_RETRIES`];
-  if (embProvider || embModel || embBaseUrl || embApiKey) {
-    config.embeddings = {
-      provider:
-        (embProvider as ProviderType) || DEFAULT_CONFIG.embeddings.provider,
-      model: embModel || DEFAULT_CONFIG.embeddings.model,
-      baseUrl: embBaseUrl,
-      apiKey: embApiKey,
-      batchSize: DEFAULT_CONFIG.embeddings.batchSize,
-      timeoutMs: embTimeoutMs
-        ? Number.parseInt(embTimeoutMs, 10)
-        : DEFAULT_CONFIG.embeddings.timeoutMs,
-      maxRetries: embMaxRetries
-        ? Number.parseInt(embMaxRetries, 10)
-        : DEFAULT_CONFIG.embeddings.maxRetries,
-    };
+  if (
+    embProvider ||
+    embModel ||
+    embBaseUrl ||
+    embApiKey ||
+    embTimeoutMs ||
+    embMaxRetries
+  ) {
+    const embeddings: Partial<EmbeddingsConfig> = {};
+    if (embProvider) embeddings.provider = embProvider as ProviderType;
+    if (embModel) embeddings.model = embModel;
+    if (embBaseUrl) embeddings.baseUrl = embBaseUrl;
+    if (embApiKey) embeddings.apiKey = embApiKey;
+    if (embTimeoutMs) embeddings.timeoutMs = Number.parseInt(embTimeoutMs, 10);
+    if (embMaxRetries)
+      embeddings.maxRetries = Number.parseInt(embMaxRetries, 10);
+    config.embeddings = embeddings as EmbeddingsConfig;
   }
 
-  // LLM
+  // LLM - only set fields that are explicitly defined in env vars
   const llmProvider = process.env[`${ENV_PREFIX}LLM_PROVIDER`];
   const llmModel = process.env[`${ENV_PREFIX}LLM_MODEL`];
   const llmBaseUrl = process.env[`${ENV_PREFIX}LLM_BASE_URL`];
@@ -271,25 +273,26 @@ function loadEnvConfig(): Partial<MgrepConfig> {
   const llmMaxTokens = process.env[`${ENV_PREFIX}LLM_MAX_TOKENS`];
   const llmTimeoutMs = process.env[`${ENV_PREFIX}LLM_TIMEOUT_MS`];
   const llmMaxRetries = process.env[`${ENV_PREFIX}LLM_MAX_RETRIES`];
-  if (llmProvider || llmModel || llmBaseUrl || llmApiKey) {
-    config.llm = {
-      provider: (llmProvider as ProviderType) || DEFAULT_CONFIG.llm.provider,
-      model: llmModel || DEFAULT_CONFIG.llm.model,
-      baseUrl: llmBaseUrl,
-      apiKey: llmApiKey,
-      temperature: llmTemperature
-        ? Number.parseFloat(llmTemperature)
-        : DEFAULT_CONFIG.llm.temperature,
-      maxTokens: llmMaxTokens
-        ? Number.parseInt(llmMaxTokens, 10)
-        : DEFAULT_CONFIG.llm.maxTokens,
-      timeoutMs: llmTimeoutMs
-        ? Number.parseInt(llmTimeoutMs, 10)
-        : DEFAULT_CONFIG.llm.timeoutMs,
-      maxRetries: llmMaxRetries
-        ? Number.parseInt(llmMaxRetries, 10)
-        : DEFAULT_CONFIG.llm.maxRetries,
-    };
+  if (
+    llmProvider ||
+    llmModel ||
+    llmBaseUrl ||
+    llmApiKey ||
+    llmTemperature ||
+    llmMaxTokens ||
+    llmTimeoutMs ||
+    llmMaxRetries
+  ) {
+    const llm: Partial<LLMConfig> = {};
+    if (llmProvider) llm.provider = llmProvider as ProviderType;
+    if (llmModel) llm.model = llmModel;
+    if (llmBaseUrl) llm.baseUrl = llmBaseUrl;
+    if (llmApiKey) llm.apiKey = llmApiKey;
+    if (llmTemperature) llm.temperature = Number.parseFloat(llmTemperature);
+    if (llmMaxTokens) llm.maxTokens = Number.parseInt(llmMaxTokens, 10);
+    if (llmTimeoutMs) llm.timeoutMs = Number.parseInt(llmTimeoutMs, 10);
+    if (llmMaxRetries) llm.maxRetries = Number.parseInt(llmMaxRetries, 10);
+    config.llm = llm as LLMConfig;
   }
 
   // Sync
