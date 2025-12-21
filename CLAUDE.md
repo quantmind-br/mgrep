@@ -56,3 +56,4 @@ The project follows a modular, provider-based architecture with a **Sync-on-Dema
 
 ## Testing
 Tests use the **Bats** framework. When running `npm run test`, the environment variable `MGREP_IS_TEST=1` is set, which forces `createStore()` to return a `TestStore` (in-memory) instead of connecting to Qdrant.
+Use 'bd' for task tracking
