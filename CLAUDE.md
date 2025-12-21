@@ -1,59 +1,128 @@
-# CLAUDE.md - Guide for mgrep Development
+# CLAUDE.md
 
-Hello! I'm the developer of `mgrep`. This guide provides the context you need to effectively work on this semantic search CLI tool.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-`mgrep` is a modern, AI-powered replacement for `grep`. It indexes codebases into a Qdrant vector database and allows for semantic searching and RAG (Retrieval-Augmented Generation) question answering. It bridges local file systems with vector-based retrieval, supporting OpenAI, Anthropic, Google Gemini, and local Ollama instances.
 
-## Common Commands
-- **Install dependencies**: `npm install`
-- **Build project**: `npm run build`
-- **Lint & Format**: `npm run lint` (check) or `npm run lint:write` (fix via Biome)
-- **Run tests**: `npm run test` (Runs Bats tests with `MGREP_IS_TEST=1`)
-- **Run CLI locally**:
-  - `npm run start -- search "query"` (Direct via ts-node)
-  - `./bin/run search "query"` (After build)
-- **Start MCP Server**: `npm run start -- mcp`
+`mgrep` is a semantic search CLI tool that synchronizes local codebases with Qdrant vector storage for RAG-based question answering and semantic discovery. It supports OpenAI, Anthropic, Google Gemini, and Ollama as AI providers.
 
-## Prerequisites for Development
-1. **Qdrant**: Must be running for indexing/search.
-   ```bash
-   docker run -p 6333:6333 qdrant/qdrant
-   ```
-2. **API Keys**: Set at least one of `OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`.
-3. **Web Search (optional)**: Set `MGREP_TAVILY_API_KEY` for web search functionality (`--web` flag).
-4. **Test Mode**: Set `MGREP_IS_TEST=1` to bypass Qdrant and use the in-memory `TestStore`.
+## Commands
 
-## Architecture & Key Components
-The project follows a modular, provider-based architecture with a **Sync-on-Demand** pattern:
+```bash
+# Development
+npm install                        # Install dependencies
+npm run build                      # Build TypeScript to dist/
+npm run dev                        # Build and run
 
-- **CLI Layer (`src/index.ts`, `src/commands/`)**: Uses `commander` to route commands.
-  - `search.ts`: Primary interface for semantic search and RAG.
-  - `watch.ts`: Monitors file system for incremental updates.
-  - `watch_mcp.ts`: Implements Model Context Protocol for AI agent integration.
-- **Service Abstraction (`src/lib/store.ts`)**: Defines the `Store` interface for all vector operations.
-- **Qdrant Implementation (`src/lib/qdrant-store.ts`)**: Handles text chunking (50 lines/10 overlap), deterministic UUID generation for points, and path-scope metadata for filtering.
-- **Provider Layer (`src/lib/providers/`)**:
-  - `embeddings/`: OpenAI and Google implementations.
-  - `llm/`: OpenAI, Google, and Anthropic implementations.
-  - `web/`: Tavily implementation for web search.
-- **Context Factory (`src/lib/context.ts`)**: The "Composition Root" where services are instantiated based on configuration.
-- **Configuration (`src/lib/config.ts`)**: Hierarchical loading (CLI > Env > Local YAML > Global YAML) validated with Zod.
-- **Sync Service (`src/lib/utils.ts`)**: `initialSync` reconciles local file system state with the vector store using SHA256 hashes.
+# Testing
+npm run test                       # BATS end-to-end tests (sets MGREP_IS_TEST=1)
+npm run test:unit                  # Vitest unit tests
+npm run test:unit:watch            # Vitest watch mode
+npm run test:coverage              # Coverage report
+npm run test:all                   # Run both unit and e2e tests
 
-## Code Style & Conventions
-- **TypeScript**: Strict typing is preferred.
-- **Formatting**: Handled by Biome. Run `npm run lint:write` before committing.
-- **Commits**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(provider): add support for deepseek`).
-- **Branching**: Use prefixes like `feat/`, `fix/`, or `docs/`.
+# Code Quality
+npm run lint                       # Check with Biome
+npm run format                     # Fix with Biome
+npm run typecheck                  # TypeScript type checking
 
-## Development Gotchas
-- **Deterministic IDs**: We use SHA256 hashes of file paths and chunk indices to generate Qdrant point IDs. This ensures idempotency during sync.
-- **Path Scoping**: We store paths as arrays (e.g., `/a/b/c` -> `["/", "/a", "/a/b", "/a/b/c"]`) to allow Qdrant to filter by directory prefix efficiently.
-- **File Filtering**: `NodeFileSystem` (in `src/lib/file.ts`) integrates with `ignore` to respect `.gitignore` and `.mgrepignore`.
-- **Logging**: We use `winston` with daily rotation. Logs are stored in `~/.local/state/mgrep/logs`.
-- **MCP Integration**: `watch_mcp.ts` provides a Model Context Protocol server. It redirects `stdout` to `stderr` to keep the communication channel clean.
+# Running Locally
+npm run start -- search "query"    # Via ts-node
+npm run start -- mcp               # Start MCP server
+./bin/run search "query"           # After build
+```
 
-## Testing
-Tests use the **Bats** framework. When running `npm run test`, the environment variable `MGREP_IS_TEST=1` is set, which forces `createStore()` to return a `TestStore` (in-memory) instead of connecting to Qdrant.
-Use 'bd' for task tracking
+**Prerequisites**: Qdrant must be running for non-test modes: `docker run -p 6333:6333 qdrant/qdrant`
+
+## Architecture
+
+**Three-layer Provider-based Strategy pattern:**
+
+1. **Command Layer** (`src/commands/`): CLI commands using Commander.js
+   - `search.ts` - Semantic search and RAG pipeline
+   - `watch.ts` - Real-time filesystem monitoring
+   - `watch_mcp.ts` - MCP server for AI agent integration
+
+2. **Service Layer** (`src/lib/`):
+   - `context.ts` - **Composition Root**: Factory for all service instantiation
+   - `qdrant-store.ts` - Vector storage, chunking, and search
+   - `config.ts` - Hierarchical config with Zod validation
+   - `file.ts` / `git.ts` - Filesystem with .gitignore/.mgrepignore support
+
+3. **Provider Layer** (`src/lib/providers/`):
+   - `embeddings/` - OpenAI, Google embeddings
+   - `llm/` - OpenAI, Anthropic, Google LLM clients
+   - `web/` - Tavily web search
+
+**Key files:**
+- `src/lib/store.ts` - Store interface + TestStore for testing
+- `src/lib/providers/types.ts` - EmbeddingsClient, LLMClient interfaces
+
+## Critical Patterns
+
+### Factory Pattern (Mandatory)
+Never instantiate services directly. Use factory functions from `src/lib/context.ts`:
+```typescript
+const store = await createStore();        // Not: new QdrantStore(...)
+const fs = createFileSystem();            // Not: new NodeFileSystem(...)
+```
+
+### Deterministic Point IDs
+Qdrant point IDs are SHA256 hashes of `externalId` (file path) + `chunkIndex`. This makes sync operations idempotent.
+
+### Path Scoping for Filtering
+Files are indexed with a `path_scopes` array enabling hierarchical filtering:
+`/src/lib/file.ts` → `['/', '/src', '/src/lib', '/src/lib/file.ts']`
+
+### Chunking
+Files split into 50-line chunks with 10-line overlap to preserve context at boundaries.
+
+### Sync-on-Demand
+`search` and `ask` commands trigger `initialSync` before processing. Uses SHA256 hashes to detect changes.
+
+### MCP Server Logging
+When running as MCP server, all logging must go to `stderr` - `stdout` is reserved for JSON-RPC transport.
+
+### Test Mode
+Setting `MGREP_IS_TEST=1` causes `createStore()` to return an in-memory `TestStore` instead of connecting to Qdrant.
+
+## Configuration
+
+**Hierarchy** (highest to lowest priority):
+CLI Flags → Environment Variables (`MGREP_*`) → Local `.mgreprc.yaml` → Global `~/.config/mgrep/config.yaml`
+
+All config schemas defined with Zod in `src/lib/config.ts`.
+
+## Code Style
+
+- **TypeScript**: Strict typing, avoid `any`
+- **Format/Lint**: Biome (`npm run format` before committing)
+- **Commits**: Conventional Commits (e.g., `feat(llm): add deepseek provider`)
+- **Branches**: Use prefixes `feat/`, `fix/`, `docs/`
+
+## Adding a New Provider
+
+1. Create implementation in `src/lib/providers/[embeddings|llm|web]/`
+2. Register in factory at `src/lib/providers/index.ts`
+3. Update Zod schema in `src/lib/config.ts`
+
+## MCP Server Tools
+
+The MCP server (`npm run start -- mcp`) exposes 8 tools:
+
+### Core Tools
+- **mgrep-search**: `query`, `path?`, `max_results?`, `include_content?`, `rerank?`
+- **mgrep-ask**: `question`, `path?`, `max_results?`, `rerank?`
+- **mgrep-web-search**: `query`, `max_results?`, `include_content?`
+- **mgrep-sync**: `dry_run?`
+
+### Utility Tools
+- **mgrep-get-file**: `path`, `start_line?`, `end_line?` - Retrieve file content with line range
+- **mgrep-list-files**: `path_prefix?`, `limit?`, `offset?`, `include_hash?` - List indexed files
+- **mgrep-get-context**: `path`, `line`, `context_lines?` - Get expanded context around a line
+- **mgrep-stats**: (no parameters) - Get store statistics
+
+### Testing MCP Tools
+```bash
+npx @anthropic-ai/mcp-inspector
+```

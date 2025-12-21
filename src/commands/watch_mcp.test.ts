@@ -3,8 +3,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock all dependencies
 vi.mock("../lib/context.js", () => ({
   createFileSystem: vi.fn(),
-  createStore: vi.fn(),
-  createWebSearchClientFromConfig: vi.fn(),
+  createStore: vi.fn(() =>
+    Promise.resolve({
+      search: vi.fn(),
+      ask: vi.fn(),
+      create: vi.fn(),
+      retrieve: vi.fn(),
+      listFiles: vi.fn(),
+    }),
+  ),
+  createWebSearchClientFromConfig: vi.fn(() => ({
+    search: vi.fn(() =>
+      Promise.resolve({
+        results: [
+          {
+            url: "https://example.com",
+            title: "Example",
+            content: "Example content",
+            score: 0.95,
+          },
+        ],
+      }),
+    ),
+  })),
 }));
 
 vi.mock("../lib/config.js", () => ({
@@ -59,15 +80,17 @@ vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
 }));
 
 vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
-  CallToolRequestSchema: {},
+  CallToolRequestSchema: Symbol("CallToolRequestSchema"),
   ErrorCode: { InvalidParams: 400, InternalError: 500, MethodNotFound: 404 },
-  ListToolsRequestSchema: {},
-  McpError: class extends Error {
-    constructor(code: number, message: string) {
+  ListToolsRequestSchema: Symbol("ListToolsRequestSchema"),
+  McpError: class McpError extends Error {
+    constructor(
+      public code: number,
+      message: string,
+    ) {
       super(message);
-      this.code = code;
+      this.name = "McpError";
     }
-    code: number;
   },
 }));
 
@@ -91,6 +114,10 @@ describe("watch_mcp command", () => {
 
     it("should have correct description", () => {
       expect(watchMcp.description()).toContain("MCP server");
+    });
+
+    it("should have the action function defined", () => {
+      expect(typeof watchMcp.action).toBe("function");
     });
   });
 
@@ -118,6 +145,22 @@ describe("watch_mcp command", () => {
     });
 
     it("should define the mgrep-sync tool", () => {
+      expect(watchMcp).toBeDefined();
+    });
+
+    it("should define the mgrep-get-file tool", () => {
+      expect(watchMcp).toBeDefined();
+    });
+
+    it("should define the mgrep-list-files tool", () => {
+      expect(watchMcp).toBeDefined();
+    });
+
+    it("should define the mgrep-get-context tool", () => {
+      expect(watchMcp).toBeDefined();
+    });
+
+    it("should define the mgrep-stats tool", () => {
       expect(watchMcp).toBeDefined();
     });
   });

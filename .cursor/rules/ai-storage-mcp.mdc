@@ -1,0 +1,37 @@
+---
+description: Rules for Qdrant storage, AI provider interfaces, RAG logic, and MCP server implementation.
+globs:
+  - "src/lib/providers/**/*.ts"
+  - "src/lib/qdrant-store.ts"
+  - "src/commands/watch_mcp.ts"
+  - "src/lib/store.ts"
+alwaysApply: false
+---
+
+# AI, Storage & MCP Integration
+
+Rules for working with LLM providers, Qdrant storage, and the Model Context Protocol server.
+
+## Vector Storage (Qdrant)
+- **Payload Schema**: Chunks must include `path`, `path_scopes`, `hash`, `content`, `start_line`, and `num_lines`.
+- **Filtering**: Always apply `path_scopes` filters when a path context is provided to the search/ask commands.
+- **Chunking**: Use a 50-line window with a 10-line overlap by default.
+
+## AI Provider Implementation
+- **LLM Client**: Implement the `LLMClient` interface in `src/lib/providers/types.ts`.
+- **Embeddings**: Implement the `EmbeddingsClient` interface. Handle token counts and dimensions accurately.
+- **Web Search**: Integration with Tavily must go through the `WebSearchClient` interface.
+
+## RAG (Ask) Pipeline
+- The LLM MUST be instructed to use `<cite i="N">` tags where `N` is the index of the source chunk.
+- Source chunks should be sorted by relevance score before being injected into the context.
+- The `ask` method in `QdrantStore` handles the prompt augmentation logic.
+
+## MCP Server (`src/commands/watch_mcp.ts`)
+- Tools exposed: `mgrep-search`, `mgrep-ask`, `mgrep-web-search`, `mgrep-sync`.
+- Use `McpError` for error responses.
+- Redirect all logs to `stderr` to avoid polluting the JSON-RPC `stdout` stream.
+- Ensure tool inputs match the Zod schemas defined in the MCP server registration.
+
+## Citations & Output
+- Use the `source-map` logic to link `<cite>` tags back to the actual file paths and line ranges in terminal output.

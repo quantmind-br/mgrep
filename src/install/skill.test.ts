@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { getSkillVersion, getSkillVersionShort, loadSkill } from "./skill.js";
 
 describe("skill", () => {

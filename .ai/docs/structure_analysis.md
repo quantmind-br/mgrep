@@ -1,66 +1,57 @@
 # Code Structure Analysis
 
 ## Architectural Overview
-`mgrep` is a semantic search and file indexing CLI tool designed to bridge local codebases with vector-based retrieval and LLM-powered question answering. The architecture is built around a **Sync-on-Demand** pattern, where local file systems are synchronized with a vector database (primarily Qdrant) before search or query operations.
+`mgrep` is a CLI-based semantic search and file indexing tool that synchronizes local codebases with vector-based storage for retrieval and LLM-powered question answering. The architecture follows a **Provider-based Strategy** pattern, allowing for interchangeable AI backends (OpenAI, Google, Anthropic, Ollama) and storage solutions.
 
-The system is organized into several distinct layers:
-- **CLI Layer**: Handles command parsing and user interaction.
-- **Command Layer**: Orchestrates high-level workflows like searching, watching, and installing integrations.
-- **Service/Library Layer**: Contains the core logic for file system traversal, git integration, text chunking, and synchronization.
-- **Provider Layer**: Abstracted interfaces for external AI services (Embeddings and LLMs).
-- **Storage Layer**: Abstracted interface for vector database operations.
+The system is organized into three primary layers:
+1.  **Command Layer (`src/commands`)**: Orchestrates high-level workflows such as semantic search, file watching, and installation of integrations.
+2.  **Service/Library Layer (`src/lib`)**: Contains the core logic for file system traversal, Git integration, text chunking, and synchronization.
+3.  **Provider Layer (`src/lib/providers`)**: Defines abstract interfaces for external AI services (Embeddings, LLMs, Web Search) to decouple the application from specific vendor SDKs.
 
 ## Core Components
-- **CLI Entry Point (`src/index.ts`)**: The main executable that configures the `commander` CLI and registers all commands.
-- **Search Command (`src/commands/search.ts`)**: The primary interface for semantic search and RAG (Retrieval-Augmented Generation). It triggers synchronization before executing queries.
-- **Watch Command (`src/commands/watch.ts`)**: Monitors the file system for changes and incrementally updates the vector store.
-- **MCP Server (`src/commands/watch_mcp.ts`)**: Implements the Model Context Protocol to allow AI agents to interact with the `mgrep` indexing service.
-- **Qdrant Store (`src/lib/qdrant-store.ts`)**: The concrete implementation of the `Store` interface, managing collections, point IDs, and vector searches in Qdrant.
-- **File System Manager (`src/lib/file.ts`)**: Handles recursive file discovery, respecting `.gitignore` and `.mgrepignore` patterns.
-- **Git Integration (`src/lib/git.ts`)**: Provides utilities to detect git repositories and list tracked/untracked files using the `git` CLI.
+*   **CLI Entry Point (`src/index.ts`)**: Initializes the `commander` CLI, sets up the logger, and registers all commands.
+*   **Search Command (`src/commands/search.ts`)**: Implements the RAG (Retrieval-Augmented Generation) pipeline. It ensures the local file system is synchronized with the store before performing searches or "ask" queries.
+*   **Watch Command (`src/commands/watch.ts`)**: Implements a long-running service that monitors the file system for changes and incrementally updates the vector store in real-time.
+*   **MCP Server (`src/commands/watch_mcp.ts`)**: Provides a Model Context Protocol interface, allowing AI agents (like Claude Desktop) to interact with `mgrep` as a tool.
+*   **Qdrant Store (`src/lib/qdrant-store.ts`)**: The default implementation of the `Store` interface, managing vector collections, deterministic point ID generation, and metadata filtering.
+*   **Config Manager (`src/lib/config.ts`)**: Handles configuration loading from `.mgreprc.yaml` and environment variables, using Zod for schema validation.
 
 ## Service Definitions
-- **Store Service (`Store` interface)**: Responsible for the lifecycle of documents in the vector database, including uploading, deleting, searching, and retrieving store metadata.
-- **Embeddings Service (`EmbeddingsClient` interface)**: Generates high-dimensional vector representations of text chunks.
-- **LLM Service (`LLMClient` interface)**: Provides chat completion capabilities, used primarily for the `ask` functionality to generate answers from retrieved context.
-- **Sync Service (`initialSync` in `src/lib/utils.ts`)**: A critical utility that reconciles the state of the local file system with the vector store by comparing file hashes.
+*   **Synchronization Service (`src/lib/utils.ts` -> `initialSync`)**: Reconciles the local file system state with the vector store by comparing file hashes and managing parallelized uploads.
+*   **File Discovery Service (`src/lib/file.ts`)**: Provides recursive directory traversal while respecting `.gitignore` and `.mgrepignore` rules.
+*   **Context Factory (`src/lib/context.ts`)**: Acts as a lightweight Dependency Injection container, instantiating stores, file systems, and providers based on the current configuration.
 
 ## Interface Contracts
-- **`Store`**: Defines methods for `listFiles`, `uploadFile`, `deleteFile`, `search`, `ask`, and `getInfo`.
-- **`EmbeddingsClient`**: Defines `embed`, `embedBatch`, and `getDimensions`.
-- **`LLMClient`**: Defines `chat` and `chatStream`.
-- **`FileSystem`**: Defines `getFiles` and `isIgnored`.
-- **`Git`**: Defines `isGitRepository`, `getGitFiles`, and `getGitIgnoreFilter`.
+*   **`Store` (`src/lib/store.ts`)**: Defines the contract for vector database operations: `search`, `ask`, `uploadFile`, `deleteFile`, `listFiles`, and `getInfo`.
+*   **`EmbeddingsClient` (`src/lib/providers/types.ts`)**: Defines the interface for generating vector embeddings: `embed`, `embedBatch`, and `getDimensions`.
+*   **`LLMClient` (`src/lib/providers/types.ts`)**: Defines the interface for chat completions: `chat` and `chatStream`.
+*   **`WebSearchClient` (`src/lib/providers/web/types.ts`)**: Defines the contract for external web search (currently implemented via Tavily).
 
 ## Design Patterns Identified
-- **Strategy Pattern**: Used extensively for `Store`, `EmbeddingsClient`, and `LLMClient` to support multiple providers (OpenAI, Google, Anthropic, Ollama) and storage backends.
-- **Factory Pattern**: Centralized in `src/lib/context.ts`, which provides `createStore`, `createGit`, and `createFileSystem` functions that instantiate the correct classes based on the loaded configuration.
-- **Dependency Injection**: The `QdrantStore` is injected with `EmbeddingsClient` and `LLMClient` instances, promoting testability and decoupling.
-- **Adapter Pattern**: The `NodeFileSystem` and `NodeGit` classes adapt standard Node.js APIs and CLI tools to the project's internal interfaces.
-- **Singleton/Cached Configuration**: `src/lib/config.ts` uses a caching mechanism for the loaded configuration to avoid redundant disk I/O.
+*   **Strategy Pattern**: Applied to AI providers (LLM/Embeddings) and storage backends, allowing the tool to work across different hardware and API environments.
+*   **Command Pattern**: The CLI is built using the `commander` library, where each command is an isolated module responsible for its own flags and logic.
+*   **Adapter Pattern**: Used in `NodeFileSystem` and `NodeGit` to wrap native Node.js and CLI tools into project-specific interfaces.
+*   **Retrieval-Augmented Generation (RAG)**: The core pattern for the `ask` command, which retrieves relevant code chunks to provide context to an LLM.
+*   **Observer Pattern**: Leveraged by the `watch` command to react to file system events and trigger store updates.
 
 ## Component Relationships
-- **Commands** depend on **Context Factories** to obtain instances of **Store**, **FileSystem**, and **Git**.
-- **Store** implementations (like `QdrantStore`) depend on **Provider Clients** (Embeddings/LLM) to process data.
-- **Sync Logic** acts as a bridge between the **FileSystem** and the **Store**, using **Git** to refine the scope of files to be processed.
-- **Configuration** is the foundation used by all components to determine behavior, provider types, and API credentials.
+*   **CLI Commands** utilize the **Context Factory** to resolve their dependencies (Store, Providers, FileSystem).
+*   **Store** implementations depend on **EmbeddingsClient** for indexing and **LLMClient** for the RAG-based `ask` functionality.
+*   **Sync Logic** coordinates between the **FileSystem** (source of truth) and the **Store** (searchable index).
+*   **Providers** are isolated from the rest of the logic, only interacting via the standard interfaces defined in `src/lib/providers/types.ts`.
 
 ## Key Methods & Functions
-- **`initialSync(...)` (`src/lib/utils.ts`)**: Orchestrates the full synchronization process, including hash comparison and parallelized uploads.
-- **`QdrantStore.ask(...)`**: Implements the RAG pipeline: search for context -> augment prompt -> call LLM -> return answer with citations.
-- **`chunkText(...)` (`src/lib/qdrant-store.ts`)**: Implements the logic for splitting source code into overlapping windows to maintain context during embedding.
-- **`loadConfig(...)` (`src/lib/config.ts`)**: Merges configuration from global YAML, local YAML, and environment variables with strict Zod validation.
+*   **`initialSync(...)`**: The primary synchronization logic that determines which files need to be uploaded, updated, or deleted.
+*   **`QdrantStore.ask(...)`**: The implementation of the semantic question-answering workflow, including prompt augmentation and source citation.
+*   **`chunkText(...)`**: The text-splitting logic in `QdrantStore` that breaks files into overlapping windows to preserve context for embeddings.
+*   **`loadConfig(...)`**: Centralized configuration logic that merges multiple sources (global, local, ENV) into a single typed object.
 
 ## Available Documentation
-- **`/.ai/docs/`**: Contains detailed AI-generated analyses:
-    - `api_analysis.md`: Deep dive into API structures.
-    - `data_flow_analysis.md`: Traces how data moves through the system.
-    - `dependency_analysis.md`: Maps internal and external dependencies.
-    - `request_flow_analysis.md`: Details the lifecycle of a search/ask request.
-    - `structure_analysis.md`: Earlier structural overview.
-- **`AGENTS.md`**: Guidelines for AI agents interacting with the codebase.
-- **`CLAUDE.md`**: Development notes and commands for Claude Code.
-- **`README.md`**: High-level user documentation and installation instructions.
-- **`/guides/README.md`**: Additional usage guides.
+*   **`/.ai/docs/structure_analysis.md`**: Provides an architectural overview and component breakdown.
+*   **`/.ai/docs/api_analysis.md`**: Detailed analysis of internal and external APIs.
+*   **`/.ai/docs/request_flow_analysis.md`**: Traces the path of search and ask requests through the system.
+*   **`/.ai/docs/data_flow_analysis.md`**: Maps how data moves from the file system to the vector store.
+*   **`/.cursor/rules/`**: Contains `.mdc` files defining project rules for CLI commands, code patterns, and storage.
+*   **`README.md`**: General project information, installation, and usage instructions.
 
-**Documentation Quality**: High. The presence of specialized AI documentation in `.ai/docs/` and clear rule definitions in `.cursor/rules/` suggests a codebase optimized for both human developers and AI assistants.
+**Documentation Quality**: Excellent. The project maintains high-quality, AI-ready documentation in the `.ai/docs/` directory and clear development guidelines in `CLAUDE.md` and `AGENTS.md`.

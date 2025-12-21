@@ -1,24 +1,25 @@
 # mgrep
 
 ## Project Overview
-**mgrep** is a powerful semantic search tool designed for local codebases and seamless integration with AI agents. Unlike traditional grep which relies on literal string matching or regular expressions, `mgrep` leverages vector embeddings to understand the semantic meaning of your code, allowing for natural language queries and intelligent question-answering (RAG).
+**mgrep** is a high-performance CLI-based semantic search and file indexing tool designed to bridge the gap between local codebases and LLM-powered discovery. It synchronizes local files with a vector-based storage system, enabling developers and AI agents to perform natural language queries, ask complex questions about the code (RAG), and monitor file changes in real-time.
 
 ### Purpose and Main Functionality
-The primary purpose of `mgrep` is to bridge the gap between local source code and AI-driven development workflows. It indexes your files into a vector database (Qdrant) and provides a suite of tools to search, monitor, and query your codebase using natural language.
+The primary purpose of `mgrep` is to provide a "semantic grep" experience. Unlike traditional keyword-based search, `mgrep` understands the intent and context of code and documentation. It serves as a retrieval engine that can be used directly from the terminal or integrated into AI workflows via the Model Context Protocol (MCP).
 
 ### Key Features and Capabilities
-- **Semantic Search**: Find code based on meaning and intent rather than just keywords.
-- **Web Search Integration**: Search the web using Tavily and combine results with local files.
-- **RAG (Retrieval-Augmented Generation)**: Ask questions about your codebase and receive AI-generated answers with direct citations to source files.
-- **Real-time Synchronization**: A background "watch" mode that monitors file changes and updates the vector store incrementally.
-- **AI Agent Integration**: Built-in support for the **Model Context Protocol (MCP)** and a dedicated **Claude Plugin**, enabling tools like Claude Desktop to "see" and search your code.
-- **Multi-Provider Support**: Compatible with OpenAI, Google Gemini, Anthropic, and local models via Ollama.
-- **Smart Filtering**: Respects `.gitignore` and `.mgrepignore` patterns and handles large files gracefully.
+- **Semantic Search**: Find code and documentation based on meaning rather than literal string matches.
+- **RAG-Powered "Ask"**: Perform Retrieval-Augmented Generation to get AI-generated answers with direct citations from your codebase.
+- **Multi-Provider Support**: Pluggable architecture supporting OpenAI, Anthropic, Google Gemini, and Ollama for both embeddings and LLM responses.
+- **Real-time Synchronization**: A `watch` mode that monitors filesystem events and incrementally updates the vector store.
+- **MCP Integration**: Built-in Model Context Protocol server that allows AI agents (like Claude Desktop) to use `mgrep` as a tool.
+- **Web Search Integration**: Capability to augment local results with real-time web search via Tavily AI.
+- **Git Awareness**: Automatically respects `.gitignore` and `.mgrepignore` rules for indexing.
 
 ### Likely Intended Use Cases
-- **Developer Onboarding**: Quickly understanding a new or complex codebase by asking natural language questions.
-- **Code Discovery**: Finding relevant functions or logic across large repositories without knowing exact names.
-- **AI-Assisted Coding**: Providing AI agents with the context they need to provide accurate code suggestions or bug fixes.
+- **Code Discovery**: Quickly finding relevant modules or functions in large, unfamiliar codebases.
+- **Developer Onboarding**: Asking high-level questions about architecture and implementation details.
+- **AI Agent Tooling**: Providing a structured way for AI assistants to explore and understand a local project.
+- **Documentation Search**: Searching through technical docs with natural language.
 
 ## Table of Contents
 - [Project Overview](#project-overview)
@@ -32,156 +33,169 @@ The primary purpose of `mgrep` is to bridge the gap between local source code an
 - [Additional Documentation](#additional-documentation)
 
 ## Architecture
+`mgrep` follows a **Provider-based Strategy** pattern, decoupling the core logic from specific AI vendors or storage implementations. The system is structured into three primary layers:
 
-### High-Level Architecture Overview
-`mgrep` follows a **Sync-on-Demand** architectural pattern. It reconciles the state of the local file system with a remote or local vector database (Qdrant). The system is layered to separate CLI concerns from core business logic and external AI provider integrations.
+1.  **Command Layer**: Orchestrates high-level workflows (Search, Watch, MCP).
+2.  **Service/Library Layer**: Core logic for filesystem traversal, Git integration, and text chunking.
+3.  **Provider Layer**: Abstract interfaces for external AI services.
 
-### Technology Stack and Frameworks
-- **Runtime**: Node.js (TypeScript)
-- **CLI Framework**: `commander`
-- **Vector Database**: Qdrant (via REST API)
-- **AI Providers**: OpenAI, Anthropic, Google Generative AI, Ollama
-- **Validation**: `zod`
-- **Logging**: `winston`
+### Technology Stack
+- **Runtime**: Node.js / TypeScript
+- **CLI Framework**: Commander.js
+- **Vector Database**: Qdrant (via `@qdrant/js-client-rest`)
+- **AI Integration**: OpenAI SDK, Anthropic (REST), Google Gemini (REST), Ollama
 - **Protocols**: Model Context Protocol (MCP)
+- **Validation**: Zod
+- **UI/UX**: @clack/prompts for interactive terminal components
 
 ### Component Relationships
-The following diagram illustrates how the CLI commands interact with the core library and external services:
-
 ```mermaid
 graph TD
-    subgraph CLI_Layer [CLI Layer]
+    subgraph CLI_Entry
         Index[index.ts]
-        SearchCmd[search.ts]
-        WatchCmd[watch.ts]
-        McpCmd[watch_mcp.ts]
     end
 
-    subgraph Core_Library [Core Library]
-        Context[context.ts Factory]
+    subgraph Commands
+        Search[search.ts]
+        Watch[watch.ts]
+        MCP_Cmd[watch_mcp.ts]
+    end
+
+    subgraph Core_Services
+        Context[context.ts - Factory]
+        Store[store.ts - Interface]
+        FS[file.ts / git.ts]
         Config[config.ts]
-        StoreInt[Store Interface]
-        QdrantStore[QdrantStore]
-        FileSys[file.ts / git.ts]
     end
 
-    subgraph Provider_Layer [Provider Layer]
-        Embeddings[Embeddings Clients]
-        LLM[LLM Clients]
+    subgraph Providers
+        Embeddings[Embeddings Providers]
+        LLM[LLM Providers]
+        WebSearch[Web Search - Tavily]
     end
 
-    Index --> SearchCmd & WatchCmd & McpCmd
-    SearchCmd & WatchCmd & McpCmd --> Context
-    Context --> Config
-    Context --> FileSys
-    Context --> QdrantStore
-    QdrantStore -- implements --> StoreInt
-    QdrantStore --> Embeddings & LLM
+    Index --> Search
+    Index --> Watch
+    Index --> MCP_Cmd
+
+    Search --> Context
+    Watch --> Context
+    MCP_Cmd --> Context
+
+    Context --> Store
+    Store --> Embeddings
+    Store --> LLM
+    Search --> WebSearch
 ```
 
 ### Key Design Patterns
-- **Strategy Pattern**: Used for `Store`, `EmbeddingsClient`, and `LLMClient` to support multiple backends and AI vendors interchangeably.
-- **Factory Pattern**: Centralized in `src/lib/context.ts` to manage dependency injection and instantiation based on configuration.
-- **Adapter Pattern**: Used in `NodeFileSystem` and `NodeGit` to wrap standard Node.js and CLI tools into internal interfaces.
+- **Strategy Pattern**: Used for interchangeable AI providers and storage backends.
+- **Command Pattern**: Isolated CLI modules for specific functionalities.
+- **Adapter Pattern**: Wraps native Node.js and CLI tools (Git) into clean internal interfaces.
+- **Observer Pattern**: Utilized in `watch` mode to react to filesystem changes.
+- **Retrieval-Augmented Generation (RAG)**: The core mechanism for the `ask` command.
 
 ## C4 Model Architecture
 
 <details>
-<summary>Context Diagram</summary>
+<summary>View System Context Diagram</summary>
 
 ```mermaid
 C4Context
-    title System Context Diagram for mgrep
+    title System Context diagram for mgrep
 
-    Person(user, "Developer", "Uses mgrep to search and query code.")
-    System(mgrep, "mgrep CLI", "Semantic search and indexing tool.")
-    System_Ext(qdrant, "Qdrant DB", "Vector database for storing embeddings.")
-    System_Ext(ai_providers, "AI Providers", "OpenAI, Anthropic, Google (Embeddings & LLM).")
-    System_Ext(agent, "AI Agent (Claude)", "Interacts with mgrep via MCP or Plugin.")
+    Person(developer, "Developer", "Uses mgrep CLI to search and explore code.")
+    System(mgrep, "mgrep", "Semantic search and indexing tool.")
+    System_Ext(qdrant, "Qdrant", "Vector database for storage.")
+    System_Ext(ai_providers, "AI Providers", "OpenAI, Anthropic, Google, Ollama (Embeddings & LLM)")
+    System_Ext(tavily, "Tavily", "Web search engine.")
+    System_Ext(mcp_client, "MCP Client", "AI Agents like Claude Desktop.")
 
-    Rel(user, mgrep, "Executes commands", "CLI")
-    Rel(agent, mgrep, "Queries codebase", "MCP/Stdio")
-    Rel(mgrep, qdrant, "Stores/Searches vectors", "HTTPS/REST")
-    Rel(mgrep, ai_providers, "Generates embeddings/answers", "HTTPS/REST")
+    Rel(developer, mgrep, "Uses CLI commands")
+    Rel(mgrep, qdrant, "Stores/Retrieves vectors")
+    Rel(mgrep, ai_providers, "Generates embeddings and answers")
+    Rel(mgrep, tavily, "Performs web searches")
+    Rel(mcp_client, mgrep, "Calls tools via MCP")
 ```
 </details>
 
 <details>
-<summary>Container Diagram</summary>
+<summary>View Container Diagram</summary>
 
 ```mermaid
 C4Container
-    title Container Diagram for mgrep
+    title Container diagram for mgrep
 
-    Container(cli, "CLI Entry", "TypeScript/Commander", "Parses arguments and routes to commands.")
-    Container(mcp_server, "MCP Server", "TypeScript/MCP SDK", "Exposes tools to AI agents.")
-    Container(sync_engine, "Sync Engine", "TypeScript", "Reconciles local files with vector store.")
-    Container(qdrant_store, "Qdrant Store", "TypeScript", "Manages vector operations and RAG logic.")
+    Container(cli, "CLI Application", "TypeScript/Node.js", "Entry point for users and terminal commands.")
+    Container(mcp_server, "MCP Server", "TypeScript/Node.js", "Handles JSON-RPC requests from AI agents.")
+    Container(sync_engine, "Sync Engine", "TypeScript/Node.js", "Reconciles filesystem state with vector store.")
+    Container(provider_factory, "Provider Factory", "TypeScript/Node.js", "Instantiates LLM and Embedding clients.")
     
-    ContainerDb(local_fs, "Local File System", "Files", "Source of truth for code.")
-    
-    Rel(cli, sync_engine, "Triggers sync")
-    Rel(cli, qdrant_store, "Calls search/ask")
-    Rel(mcp_server, sync_engine, "Starts background watch")
-    Rel(sync_engine, local_fs, "Reads files/hashes")
-    Rel(sync_engine, qdrant_store, "Upserts/Deletes points")
-    Rel(qdrant_store, qdrant_store, "Performs RAG pipeline")
+    ContainerDb(qdrant_db, "Qdrant Store", "Vector Database", "Persistent storage for code embeddings.")
+
+    Rel(cli, provider_factory, "Requests services")
+    Rel(mcp_server, provider_factory, "Requests services")
+    Rel(sync_engine, qdrant_db, "Upserts/Deletes data")
+    Rel(provider_factory, qdrant_db, "Performs searches")
 ```
 </details>
 
 ## Repository Structure
-- `src/index.ts`: Main CLI entry point.
-- `src/commands/`: Implementation of CLI commands (`search`, `watch`, `mcp`).
-- `src/lib/`: Core logic including configuration, file system abstractions, and the Qdrant store.
-- `src/lib/providers/`: AI provider implementations (OpenAI, Google, Anthropic).
-- `plugins/`: Integration plugins (e.g., Claude plugin).
-- `src/install/`: Scripts for system-level integration.
+- `src/index.ts`: Main CLI entry point and command registration.
+- `src/commands/`: Implementation of CLI commands (`search`, `watch`, `watch_mcp`).
+- `src/lib/`:
+    - `providers/`: AI service implementations (OpenAI, Anthropic, Google, etc.).
+    - `config.ts`: Configuration loading and Zod schema validation.
+    - `context.ts`: Dependency injection factory.
+    - `qdrant-store.ts`: Main vector database implementation.
+    - `file.ts` & `git.ts`: Filesystem and Git abstractions.
+- `tavily-mcp/`: Specialized MCP server for standalone web search.
 
 ## Dependencies and Integration
-### Internal and External Service Dependencies
-- **Qdrant**: Required as the vector database. It can be hosted locally or in the cloud.
-- **AI Providers**:
-    - **OpenAI**: Used for embeddings and LLM completions.
-    - **Google AI (Gemini)**: Supported for embeddings and LLM.
-    - **Anthropic (Claude)**: Supported for LLM (answering queries).
-    - **Ollama**: Supported for local execution via OpenAI-compatible endpoints.
-- **Web Search**:
-    - **Tavily**: Used for web search integration (`--web` flag).
-- **Model Context Protocol (MCP)**: Enables integration with AI agents like Claude Desktop.
+`mgrep` integrates with the following services:
+- **Vector Storage**: **Qdrant** is the primary store for indexed code data.
+- **LLM Providers**: Supports **OpenAI**, **Anthropic (Claude)**, **Google (Gemini)**, and **Ollama**.
+- **Embeddings**: Uses external providers to convert text chunks into vector representations.
+- **Web Search**: **Tavily AI** for real-time web result retrieval.
+- **MCP**: Integrates as a tool provider for any **Model Context Protocol** compatible client.
 
 ## API Documentation
+`mgrep` exposes its functionality primarily through the **Model Context Protocol (MCP)**.
 
-### CLI Interface
-| Command | Description | Key Options |
+### MCP Tools (mgrep)
+| Tool | Description | Key Parameters |
 | :--- | :--- | :--- |
-| `search <pattern>` | Semantic search over indexed files. | `-a` (Ask/RAG), `-c` (Show content), `-s` (Sync first), `-w` (Web search) |
-| `watch` | Starts background file synchronization. | `-d` (Dry run) |
-| `mcp` | Starts the MCP server for AI agents. | N/A |
+| `mgrep-search` | Semantic search over indexed files. | `query`, `path`, `max_results`, `rerank` |
+| `mgrep-ask` | RAG-based question answering. | `question`, `path`, `max_results`, `rerank` |
+| `mgrep-web-search`| Search the web using Tavily AI. | `query`, `max_results`, `include_content` |
+| `mgrep-sync` | Force-sync local files with the store. | `dry_run` |
+| `mgrep-get-file` | Retrieve file content with line range support. | `path`, `start_line`, `end_line` |
+| `mgrep-list-files` | List indexed files with pagination. | `path_prefix`, `limit`, `offset`, `include_hash` |
+| `mgrep-get-context` | Get expanded context around a line. | `path`, `line`, `context_lines` |
+| `mgrep-stats` | Get store statistics. | (none) |
 
-### MCP Server
-- **Transport**: Standard Input/Output (Stdio).
-- **Tools**: Currently provides a skeleton for tool definitions (e.g., semantic search tools for agents).
-- **Behavior**: Automatically initializes a file watcher upon startup.
-
-### Configuration
-Configuration is managed via `.mgreprc.yaml` (local) or `~/.config/mgrep/config.yaml` (global).
-- **Environment Variables**: `MGREP_QDRANT_API_KEY`, `MGREP_OPENAI_API_KEY`, `MGREP_ANTHROPIC_API_KEY`, `MGREP_GOOGLE_API_KEY`, `MGREP_TAVILY_API_KEY`.
+### External Service Requirements
+- **API Keys**: Required for configured providers (e.g., `OPENAI_API_KEY`, `TAVILY_API_KEY`).
+- **Qdrant**: Access to a Qdrant instance (local or cloud) via `MGREP_QDRANT_URL`.
 
 ## Development Notes
-- **Project Conventions**: Uses `zod` for strict configuration validation and `winston` for structured logging.
-- **Performance Considerations**:
-    - Uses `p-limit` for concurrency control during indexing (default: 20).
-    - Implements file size limits (default: 10MB) and binary file detection.
-    - Uses SHA256 hashing for idempotent updates and change detection.
-- **Testing**: Includes a `TestStore` implementation for internal logic verification without requiring a live Qdrant instance.
+- **Configuration**: Uses `.mgreprc.yaml` or global configuration files. Validated via Zod.
+- **Sync Logic**: Uses SHA-256 hashing to determine file changes, ensuring efficient incremental updates.
+- **Concurrency**: Bulk operations (like initial sync) are managed via configurable concurrency limits (default: 20).
+- **Testing**:
+    - **Vitest**: For unit and integration tests.
+    - **BATS**: For end-to-end CLI behavior validation.
+- **Performance**: Large files are chunked into overlapping windows (default 50 lines) to maintain context for embeddings.
 
 ## Known Issues and Limitations
-- **MCP Tools**: The MCP tool implementation is currently a skeleton; full tool definitions for agents are in progress.
-- **Synchronous I/O**: Some file system operations in `NodeFileSystem` use synchronous calls, which may impact performance on extremely large repositories.
-- **Store Hard-coding**: The `createStore` factory is currently biased towards `QdrantStore`, making it the primary supported production backend.
+- **File Size**: Files exceeding the configured `maxFileSize` (default 10MB) are skipped.
+- **Binary Files**: Only text files are indexed; binary files are automatically detected and ignored.
+- **Provider Stability**: Direct REST implementations for Anthropic and Google (instead of SDKs) require manual maintenance for API changes.
+- **Store Support**: While the architecture is modular, `Qdrant` is currently the only non-test storage implementation.
 
 ## Additional Documentation
-- [CLAUDE.md](CLAUDE.md) - Integration and development notes for Claude.
-- [SKILL.md](SKILL.md) - Documentation for the `mgrep` skill used by AI agents.
-- [AGENTS.md](AGENTS.md) - Guidelines for AI agents interacting with the codebase.
-- [Usage Guides](guides/README.md) - Detailed usage instructions and examples.
+- [Architecture Analysis](.ai/docs/structure_analysis.md)
+- [API Deep Dive](.ai/docs/api_analysis.md)
+- [Data Flow Details](.ai/docs/data_flow_analysis.md)
+- [Request Flow Mapping](.ai/docs/request_flow_analysis.md)
+- [Claude Skill Integration](plugins/mgrep/skills/mgrep/SKILL.md)

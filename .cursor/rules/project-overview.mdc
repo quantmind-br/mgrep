@@ -1,5 +1,5 @@
 ---
-description: High-level architecture, core concepts, and technology stack for mgrep.
+description: General overview of the mgrep project architecture, stack, and core concepts.
 globs:
   - "*"
 alwaysApply: true
@@ -7,22 +7,23 @@ alwaysApply: true
 
 # mgrep Project Overview
 
-`mgrep` is a semantic search and file indexing CLI tool that bridges local codebases with vector-based retrieval and LLM-powered question answering.
+`mgrep` is a CLI-based semantic search and file indexing tool. It synchronizes local codebases with a vector database (Qdrant) to enable RAG-based question answering and semantic retrieval.
 
-## Architectural Layers
-- **CLI Layer (`src/commands/`)**: Command parsing using `commander`. Includes `search`, `watch`, and `mcp` (Model Context Protocol).
-- **Service Layer (`src/lib/`)**: Core logic for file system traversal, git integration, and the `initialSync` reconciliation logic.
-- **Provider Layer (`src/lib/providers/`)**: Abstracted interfaces for Embeddings and LLMs (OpenAI, Google, Anthropic, Ollama).
-- **Storage Layer (`src/lib/qdrant-store.ts`)**: Concrete implementation of the `Store` interface using Qdrant.
+## Core Architecture
+- **Provider-based Strategy**: Abstracted interfaces for LLMs, Embeddings, and Web Search (Tavily) allow interchangeable backends.
+- **Factory Pattern**: All core services (Store, Providers) MUST be instantiated via the `Context Factory` in `src/lib/context.ts`.
+- **Sync-on-Demand**: The system reconciles the local filesystem with the vector store using SHA-256 hashes before search/ask operations.
+- **MCP Server**: Implements the Model Context Protocol in `src/commands/watch_mcp.ts` to allow AI agents to use `mgrep` as a tool.
 
-## Core Concepts
-- **Sync-on-Demand**: The system reconciles local file state with the vector store before search/query operations using SHA256 hashes.
-- **Deterministic Point IDs**: Qdrant point IDs are generated via `generatePointId(externalId, chunkIndex)` to ensure idempotent updates.
-- **Path Scoping**: Files are indexed with `path_scopes` (e.g., `/src/lib/file.ts` -> `["/", "/src", "/src/lib", "/src/lib/file.ts"]`) to enable efficient hierarchical filtering.
-- **MCP Integration**: Acts as a Model Context Protocol server to provide semantic search capabilities to AI agents.
+## Technology Stack
+- **Runtime**: Node.js with TypeScript.
+- **CLI Framework**: `commander.js`.
+- **Vector DB**: Qdrant (via `@qdrant/js-client-rest`).
+- **Validation**: `zod` for configuration schemas and API contracts.
+- **UI**: `@clack/prompts` for interactive terminal experiences.
 
-## Tech Stack
-- **Runtime**: Node.js / TypeScript
-- **Vector DB**: Qdrant (REST API)
-- **Validation**: Zod (for configuration and API responses)
-- **CLI UI**: `commander`, `ora`, `chalk`, `@clack/prompts`
+## Key Concepts
+- **Deterministic Point IDs**: Qdrant IDs are generated using `generatePointId(externalId, chunkIndex)` based on file path and chunk index for idempotency.
+- **Path Scoping**: Files are indexed with a `path_scopes` array (e.g., `/src/lib/file.ts` -> `['/', '/src', '/src/lib', '/src/lib/file.ts']`) to allow fast hierarchical filtering.
+- **Ignore Logic**: Respects both `.gitignore` and `.mgrepignore` using the `ignore` library.
+- **Binary Detection**: Uses `istextorbinary` to skip indexing of non-text files.

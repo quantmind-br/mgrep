@@ -1,0 +1,49 @@
+---
+description: Coding standards, factory patterns, and CLI conventions for the mgrep project.
+globs:
+  - "src/**/*.ts"
+alwaysApply: false
+---
+
+# Development & Code Patterns
+
+Follow these conventions when modifying or extending the `mgrep` codebase.
+
+## Dependency Injection & Instantiation
+- **NEVER** use `new QdrantStore()` or `new AnthropicLLM()`.
+- **ALWAYS** use the factory functions from `@/lib/context`:
+  ```typescript
+  const store = await createStore();
+  const llm = await createLLMClient(config.llm);
+  ```
+
+## CLI Command Standards
+- Commands live in `src/commands/`.
+- Use the following pattern for consistent error handling and configuration loading:
+  ```typescript
+  export const myCommand = new Command()
+    .name("example")
+    .action(async (options) => {
+      try {
+        const config = await loadConfig(process.cwd(), options);
+        const store = await createStore();
+        // ... logic
+      } catch (error) {
+        console.error(chalk.red(error.message));
+        process.exitCode = 1;
+      }
+    });
+  ```
+
+## File System & Syncing
+- **Discovery**: Use functions in `src/lib/file.ts` to find files. Do not implement manual traversal.
+- **Concurrency**: Use `p-limit` for batch operations (default 20) during uploads/syncs to prevent API rate limiting.
+- **Validation**: Check `exceedsMaxFileSize(stats.size)` (default 10MB) before processing.
+
+## Configuration (Zod)
+- All configuration changes must be reflected in the `ConfigSchema` in `src/lib/config.ts`.
+- Environment variables should be prefixed with `MGREP_`.
+
+## Performance Guidelines
+- Use `initialSync` logic to reconcile state. Only upload files where the hash has changed.
+- Use `embedBatch` (default 100 chunks per batch) for efficient vector generation.

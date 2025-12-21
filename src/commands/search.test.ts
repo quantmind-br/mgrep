@@ -56,9 +56,9 @@ vi.mock("../lib/sync-helpers.js", () => ({
   formatDryRunSummary: vi.fn(() => "Dry run summary"),
 }));
 
+import * as context from "../lib/context.js";
 // Import after mocks
 import { search } from "./search.js";
-import * as context from "../lib/context.js";
 
 describe("search command", () => {
   let mockStore: any;
