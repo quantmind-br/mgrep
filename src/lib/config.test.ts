@@ -1,7 +1,18 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+let mockHomeDir: string;
+
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:os")>();
+  return {
+    ...actual,
+    homedir: () => mockHomeDir || actual.homedir(),
+  };
+});
+
 import {
   clearConfigCache,
   exceedsMaxFileSize,
@@ -19,8 +30,9 @@ describe("config", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "mgrep-test-"));
+    mockHomeDir = tempDir;
     clearConfigCache();
-    // Clear relevant env vars
+
     delete process.env.MGREP_MAX_FILE_SIZE;
     delete process.env.MGREP_EMBEDDINGS_PROVIDER;
     delete process.env.MGREP_EMBEDDINGS_MODEL;
@@ -119,7 +131,6 @@ embeddings:
       clearConfigCache();
       const config = loadConfig(tempDir);
 
-      // Provider should remain google, not be overridden to openai
       expect(config.embeddings.provider).toBe("google");
       expect(config.embeddings.apiKey).toBe("test-api-key");
     });
@@ -179,15 +190,12 @@ embeddings:
       );
       loadConfig(tempDir);
 
-      // Write invalid YAML
       fs.writeFileSync(
         path.join(tempDir, ".mgreprc.yaml"),
         "maxFileSize: [invalid\n",
       );
       const config = reloadConfig(tempDir);
 
-      // Should return config (possibly default) and not crash
-      // Invalid YAML is logged as warning but doesn't cause null return
       expect(config).toBeDefined();
     });
   });

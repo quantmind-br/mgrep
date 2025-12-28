@@ -1,34 +1,39 @@
+import type { ExecException } from "node:child_process";
+import { exec } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock node modules
+type ExecCallback = (
+  error: ExecException | null,
+  result: { stdout: string; stderr: string } | null,
+) => void;
+
 vi.mock("node:child_process", () => ({
   exec: vi.fn(),
 }));
 
 vi.mock("node:util", () => ({
-  promisify: vi.fn((fn) => fn),
+  promisify: vi.fn(
+    (fn: typeof exec) =>
+      (...args: Parameters<typeof exec>) =>
+        new Promise((resolve, reject) => {
+          (fn as any)(...args, (err: Error | null, result: any) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        }),
+  ),
 }));
 
-vi.mock("commander", () => ({
-  Command: vi.fn(() => ({
-    description: vi.fn().mockReturnThis(),
-    action: vi.fn().mockReturnThis(),
-  })),
-}));
-
-// Import after mocks
-import { exec } from "node:child_process";
 import { installClaudeCode, uninstallClaudeCode } from "./claude-code.js";
 
 describe("claude-code installer", () => {
-  let mockExec: any;
+  let mockExec: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockExec = vi.mocked(exec);
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -37,137 +42,123 @@ describe("claude-code installer", () => {
 
   describe("installClaudeCode", () => {
     it("should install plugin successfully", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installClaudeCode.parseAsync([]);
+      await installClaudeCode.parseAsync(["node", "test"]);
 
       expect(mockExec).toHaveBeenCalledWith(
         "claude plugin marketplace add mixedbread-ai/mgrep",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
       expect(mockExec).toHaveBeenCalledWith(
         "claude plugin install mgrep",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "Successfully installed the mgrep plugin",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle marketplace already installed", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(new Error("already installed"), { stdout: "", stderr: "" });
-      }) as any);
-
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installClaudeCode.parseAsync([]);
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Marketplace plugin already installed, continuing...",
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(new Error("already installed"), null);
+        },
       );
 
-      consoleSpy.mockRestore();
+      await installClaudeCode.parseAsync(["node", "test"]);
+
+      expect(console.log).toHaveBeenCalledWith(
+        "Marketplace plugin already installed, continuing...",
+      );
     });
 
     it("should handle plugin already installed", async () => {
-      const execCalls: any[] = [];
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        execCalls.push(_cmd);
-        if (execCalls.length === 1) {
-          callback(null, { stdout: "", stderr: "" });
-        } else {
-          callback(new Error("already installed"), { stdout: "", stderr: "" });
-        }
-      }) as any);
+      let callCount = 0;
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callCount++;
+          if (callCount === 1) {
+            callback(null, { stdout: "", stderr: "" });
+          } else {
+            callback(new Error("already installed"), null);
+          }
+        },
+      );
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await installClaudeCode.parseAsync(["node", "test"]);
 
-      await installClaudeCode.parseAsync([]);
-
-      expect(consoleSpy).toHaveBeenCalledWith("Plugin already installed");
-
-      consoleSpy.mockRestore();
+      expect(console.log).toHaveBeenCalledWith("Plugin already installed");
     });
 
     it("should handle installation errors", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(new Error("Installation failed"), { stdout: "", stderr: "" });
-      }) as any);
-
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
-
-      try {
-        await installClaudeCode.parseAsync([]);
-      } catch (e) {
-        // Expected to throw
-      }
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error installing plugin"),
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(new Error("Installation failed"), null);
+        },
       );
 
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
+
+      await installClaudeCode.parseAsync(["node", "test"]);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error installing plugin"),
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 
   describe("uninstallClaudeCode", () => {
     it("should uninstall plugin successfully", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await uninstallClaudeCode.parseAsync([]);
+      await uninstallClaudeCode.parseAsync(["node", "test"]);
 
       expect(mockExec).toHaveBeenCalledWith(
         "claude plugin uninstall mgrep",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
       expect(mockExec).toHaveBeenCalledWith(
         "claude plugin marketplace remove mixedbread-ai/mgrep",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "Successfully uninstalled the mgrep plugin",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle uninstall errors", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(new Error("Uninstall failed"), { stdout: "", stderr: "" });
-      }) as any);
-
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
-
-      try {
-        await uninstallClaudeCode.parseAsync([]);
-      } catch (e) {
-        // Expected to throw
-      }
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error uninstalling plugin"),
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(new Error("Uninstall failed"), null);
+        },
       );
 
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
+
+      await uninstallClaudeCode.parseAsync(["node", "test"]);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error uninstalling plugin"),
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 });

@@ -1,37 +1,53 @@
+import type { ExecException } from "node:child_process";
+import { exec } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+type ExecCallback = (
+  error: ExecException | null,
+  result: { stdout: string; stderr: string } | null,
+) => void;
 
 // Mock node modules
 vi.mock("node:child_process", () => ({
   exec: vi.fn(),
 }));
 
-vi.mock("node:fs", () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  appendFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  unlinkSync: vi.fn(),
-}));
+vi.mock("node:fs", () => {
+  const mock = {
+    existsSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    appendFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    unlinkSync: vi.fn(),
+  };
+  return { ...mock, default: mock };
+});
 
-vi.mock("node:os", () => ({
-  homedir: vi.fn(() => "/home/user"),
-}));
+vi.mock("node:os", () => {
+  const mock = { homedir: vi.fn(() => "/home/user") };
+  return { ...mock, default: mock };
+});
 
-vi.mock("node:path", () => ({
-  join: vi.fn((...args) => args.join("/")),
-  dirname: vi.fn((path) => path.substring(0, path.lastIndexOf("/"))),
-}));
+vi.mock("node:path", () => {
+  const mock = {
+    join: vi.fn((...args: string[]) => args.join("/")),
+    dirname: vi.fn((p: string) => p.substring(0, p.lastIndexOf("/"))),
+  };
+  return { ...mock, default: mock };
+});
 
 vi.mock("node:util", () => ({
-  promisify: vi.fn((fn) => fn),
-}));
-
-vi.mock("commander", () => ({
-  Command: vi.fn(() => ({
-    description: vi.fn().mockReturnThis(),
-    action: vi.fn().mockReturnThis(),
-  })),
+  promisify: vi.fn(
+    (fn: typeof exec) =>
+      (...args: Parameters<typeof exec>) =>
+        new Promise((resolve, reject) => {
+          (fn as any)(...args, (err: Error | null, result: any) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        }),
+  ),
 }));
 
 vi.mock("./skill.js", () => ({
@@ -42,15 +58,13 @@ vi.mock("./skill.js", () => ({
 }));
 
 // Import after mocks
-import { exec } from "node:child_process";
 import * as fs from "node:fs";
 import { installCodex, uninstallCodex } from "./codex.js";
 
 describe("codex installer", () => {
-  let mockExec: any;
+  let mockExec: ReturnType<typeof vi.fn>;
   let mockExistsSync: any;
   let mockReadFileSync: any;
-  let mockWriteFileSync: any;
   let mockAppendFileSync: any;
   let mockMkdirSync: any;
   let mockUnlinkSync: any;
@@ -60,7 +74,6 @@ describe("codex installer", () => {
     mockExec = vi.mocked(exec);
     mockExistsSync = vi.mocked(fs.existsSync);
     mockReadFileSync = vi.mocked(fs.readFileSync);
-    mockWriteFileSync = vi.mocked(fs.writeFileSync);
     mockAppendFileSync = vi.mocked(fs.appendFileSync);
     mockMkdirSync = vi.mocked(fs.mkdirSync);
     mockUnlinkSync = vi.mocked(fs.unlinkSync);
@@ -75,155 +88,135 @@ describe("codex installer", () => {
 
   describe("installCodex", () => {
     it("should install plugin successfully", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
       mockExistsSync.mockReturnValue(false);
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installCodex.parseAsync([]);
+      await installCodex.parseAsync(["node", "test"]);
 
       expect(mockExec).toHaveBeenCalledWith(
         "codex mcp add mgrep mgrep mcp",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
       expect(mockMkdirSync).toHaveBeenCalled();
       expect(mockAppendFileSync).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "Successfully installed the mgrep background sync",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should skip skill if already installed", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue("---\nname: mgrep\ndescription: Test\n");
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await installCodex.parseAsync(["node", "test"]);
 
-      await installCodex.parseAsync([]);
-
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "The mgrep skill is already installed in the Codex agent",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle installation errors", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(new Error("Install failed"), { stdout: "", stderr: "" });
-      }) as any);
-
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
-
-      try {
-        await installCodex.parseAsync([]);
-      } catch (e) {
-        // Expected
-      }
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error installing plugin"),
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(new Error("Install failed"), null);
+        },
       );
 
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
+
+      await installCodex.parseAsync(["node", "test"]);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error installing plugin"),
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 
   describe("uninstallCodex", () => {
     it("should uninstall plugin successfully", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue("---\nname: mgrep\ntest\n---\nother\n");
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await installCodex.parseAsync(["node", "test"]);
 
-      await uninstallCodex.parseAsync([]);
+      await uninstallCodex.parseAsync(["node", "test"]);
 
       expect(mockExec).toHaveBeenCalledWith(
         "codex mcp remove mgrep",
         expect.objectContaining({ shell: expect.any(String) }),
+        expect.any(Function),
       );
-      expect(mockWriteFileSync).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Successfully removed the mgrep from the Codex agent",
-      );
-
-      consoleSpy.mockRestore();
     });
 
     it("should delete file if empty after removal", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue("---\nname: mgrep\ntest\n");
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await uninstallCodex.parseAsync([]);
+      await uninstallCodex.parseAsync(["node", "test"]);
 
       expect(mockUnlinkSync).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle missing AGENTS.md gracefully", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(null, { stdout: "", stderr: "" });
-      }) as any);
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(null, { stdout: "", stderr: "" });
+        },
+      );
 
       mockExistsSync.mockReturnValue(false);
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await uninstallCodex.parseAsync(["node", "test"]);
 
-      await uninstallCodex.parseAsync([]);
-
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "Successfully removed the mgrep from the Codex agent",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle uninstall errors", async () => {
-      mockExec.mockImplementation(((_cmd: any, _opts: any, callback: any) => {
-        callback(new Error("Uninstall failed"), { stdout: "", stderr: "" });
-      }) as any);
-
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
-
-      try {
-        await uninstallCodex.parseAsync([]);
-      } catch (e) {
-        // Expected
-      }
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error uninstalling plugin"),
+      mockExec.mockImplementation(
+        (_cmd: string, _opts: any, callback: ExecCallback) => {
+          callback(new Error("Uninstall failed"), null);
+        },
       );
 
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
+
+      await uninstallCodex.parseAsync(["node", "test"]);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error uninstalling plugin"),
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 });

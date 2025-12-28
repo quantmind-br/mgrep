@@ -1,6 +1,6 @@
+import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock all dependencies
 vi.mock("../lib/context.js", () => ({
   createFileSystem: vi.fn(),
   createStore: vi.fn(),
@@ -57,8 +57,14 @@ vi.mock("../lib/sync-helpers.js", () => ({
 }));
 
 import * as context from "../lib/context.js";
-// Import after mocks
 import { search } from "./search.js";
+
+function createTestProgram() {
+  const program = new Command();
+  program.option("--store <string>", "The store to use", "test-store");
+  program.addCommand(search);
+  return program;
+}
 
 describe("search command", () => {
   let mockStore: any;
@@ -135,8 +141,9 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue(results);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test"]);
 
       expect(mockStore.search).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalled();
@@ -161,8 +168,9 @@ describe("search command", () => {
       mockStore.ask.mockResolvedValue(results);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-a", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-a"]);
 
       expect(mockStore.ask).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalled();
@@ -176,8 +184,9 @@ describe("search command", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test"]);
 
       expect(consoleSpy).toHaveBeenCalledWith(
         "Failed to search: Search failed",
@@ -188,8 +197,9 @@ describe("search command", () => {
 
     it("should apply path filter", async () => {
       mockStore.search.mockResolvedValue({ data: [] });
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "/src", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "/src"]);
 
       expect(mockStore.search).toHaveBeenCalledWith(
         ["test-store"],
@@ -210,8 +220,9 @@ describe("search command", () => {
 
     it("should respect max-count option", async () => {
       mockStore.search.mockResolvedValue({ data: [] });
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-m", "5", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-m", "5"]);
 
       expect(mockStore.search).toHaveBeenCalledWith(
         ["test-store"],
@@ -224,8 +235,15 @@ describe("search command", () => {
 
     it("should respect rerank option", async () => {
       mockStore.search.mockResolvedValue({ data: [] });
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "--no-rerank", "--store", "test-store"]);
+      await program.parseAsync([
+        "node",
+        "test",
+        "search",
+        "test",
+        "--no-rerank",
+      ]);
 
       expect(mockStore.search).toHaveBeenCalledWith(
         ["test-store"],
@@ -248,8 +266,9 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue({ data: [chunk] });
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -273,8 +292,9 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue({ data: [chunk] });
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -296,8 +316,9 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue({ data: [chunk] });
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-c", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-c"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -323,8 +344,9 @@ describe("search command", () => {
       mockStore.ask.mockResolvedValue(response);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-a", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-a"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -372,8 +394,9 @@ describe("search command", () => {
       mockStore.ask.mockResolvedValue(response);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-a", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-a"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -415,8 +438,9 @@ describe("search command", () => {
       mockStore.ask.mockResolvedValue(response);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-a", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-a"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
@@ -444,8 +468,9 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue({ data: [] });
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-w", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-w"]);
 
       expect(mockWebClient.search).toHaveBeenCalledWith("test", {
         maxResults: 10,
@@ -463,8 +488,9 @@ describe("search command", () => {
         .spyOn(console, "error")
         .mockImplementation(() => {});
       const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-w", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-w"]);
 
       expect(consoleSpy).toHaveBeenCalledWith(
         "Web search failed: Web search failed",
@@ -503,12 +529,12 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue(localResults);
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-w", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-w"]);
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0][0];
-      // Both results should be present (sorted by score)
       expect(output).toContain("example.com");
       expect(output).toContain("file.ts");
 
@@ -519,8 +545,9 @@ describe("search command", () => {
   describe("sync functionality", () => {
     it("should sync files before search when sync flag is set", async () => {
       mockStore.search.mockResolvedValue({ data: [] });
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-s", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-s"]);
 
       expect(mockStore.search).toHaveBeenCalled();
     });
@@ -529,10 +556,10 @@ describe("search command", () => {
       mockStore.search.mockResolvedValue({ data: [] });
 
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const program = createTestProgram();
 
-      await search.parseAsync(["test", "-s", "-d", "--store", "test-store"]);
+      await program.parseAsync(["node", "test", "search", "test", "-s", "-d"]);
 
-      // The dry-run mode should print the summary
       expect(consoleSpy).toHaveBeenCalled();
 
       consoleSpy.mockRestore();

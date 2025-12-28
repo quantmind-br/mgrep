@@ -1,29 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock node modules
-vi.mock("node:fs", () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  unlinkSync: vi.fn(),
-}));
+vi.mock("node:fs", () => {
+  const mock = {
+    existsSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    unlinkSync: vi.fn(),
+  };
+  return { ...mock, default: mock };
+});
 
-vi.mock("node:os", () => ({
-  homedir: vi.fn(() => "/home/user"),
-}));
+vi.mock("node:os", () => {
+  const mock = { homedir: vi.fn(() => "/home/user") };
+  return { ...mock, default: mock };
+});
 
-vi.mock("node:path", () => ({
-  join: vi.fn((...args) => args.join("/")),
-  dirname: vi.fn((path) => path.substring(0, path.lastIndexOf("/"))),
-}));
-
-vi.mock("commander", () => ({
-  Command: vi.fn(() => ({
-    description: vi.fn().mockReturnThis(),
-    action: vi.fn().mockReturnThis(),
-  })),
-}));
+vi.mock("node:path", () => {
+  const mock = {
+    join: vi.fn((...args: string[]) => args.join("/")),
+    dirname: vi.fn((p: string) => p.substring(0, p.lastIndexOf("/"))),
+  };
+  return { ...mock, default: mock };
+});
 
 vi.mock("./skill.js", () => ({
   getSkillVersionShort: vi.fn(() => "abc12345"),
@@ -32,7 +31,6 @@ vi.mock("./skill.js", () => ({
   ),
 }));
 
-// Import after mocks
 import * as fs from "node:fs";
 import { installOpencode, uninstallOpencode } from "./opencode.js";
 
@@ -62,21 +60,18 @@ describe("opencode installer", () => {
   describe("installOpencode", () => {
     it("should install tool successfully", async () => {
       mockExistsSync.mockReturnValue(false);
+      mockReadFileSync.mockReturnValue("{}");
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installOpencode.parseAsync([]);
+      await installOpencode.parseAsync(["node", "test"]);
 
       expect(mockMkdirSync).toHaveBeenCalled();
       expect(mockWriteFileSync).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining("Successfully installed mgrep tool"),
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "Successfully configured mgrep MCP server in OpenCode",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should update existing config file", async () => {
@@ -88,12 +83,10 @@ describe("opencode installer", () => {
         }),
       );
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installOpencode.parseAsync([]);
+      await installOpencode.parseAsync(["node", "test"]);
 
       const writeCalls = mockWriteFileSync.mock.calls;
-      const configWrite = writeCalls.find((call) =>
+      const configWrite = writeCalls.find((call: any) =>
         String(call[0]).includes("opencode.json"),
       );
 
@@ -102,20 +95,16 @@ describe("opencode installer", () => {
         expect(content.mcp.mgrep).toBeDefined();
         expect(content.mcp.other).toBeDefined();
       }
-
-      consoleSpy.mockRestore();
     });
 
     it("should create config with schema if missing", async () => {
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(JSON.stringify({}));
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await installOpencode.parseAsync([]);
+      await installOpencode.parseAsync(["node", "test"]);
 
       const writeCalls = mockWriteFileSync.mock.calls;
-      const configWrite = writeCalls.find((call) =>
+      const configWrite = writeCalls.find((call: any) =>
         String(call[0]).includes("opencode.json"),
       );
 
@@ -124,8 +113,6 @@ describe("opencode installer", () => {
         expect(content.$schema).toBe("https://opencode.ai/config.json");
         expect(content.mcp.mgrep).toBeDefined();
       }
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle installation errors", async () => {
@@ -134,90 +121,73 @@ describe("opencode installer", () => {
         throw new Error("Write failed");
       });
 
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
 
-      try {
-        await installOpencode.parseAsync([]);
-      } catch (e) {
-        // Expected
-      }
+      await installOpencode.parseAsync(["node", "test"]);
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining("Error installing tool"),
       );
-
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 
   describe("uninstallOpencode", () => {
     it("should uninstall tool successfully", async () => {
+      const configJson = {
+        $schema: "https://opencode.ai/config.json",
+        mcp: {
+          mgrep: { type: "local", command: ["mgrep", "mcp"], enabled: true },
+          other: { type: "local", command: ["other"], enabled: true },
+        },
+      };
+
       mockExistsSync.mockReturnValue(true);
-      mockReadFileSync.mockReturnValue(
-        JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
-          mcp: {
-            mgrep: { type: "local", command: ["mgrep", "mcp"], enabled: true },
-            other: { type: "local", command: ["other"], enabled: true },
-          },
-        }),
-      );
+      mockReadFileSync.mockReturnValue(JSON.stringify(configJson));
+      mockUnlinkSync.mockImplementation(() => {});
+      mockWriteFileSync.mockImplementation(() => {});
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await uninstallOpencode.parseAsync([]);
+      await uninstallOpencode.parseAsync(["node", "test"]);
 
       expect(mockUnlinkSync).toHaveBeenCalled();
+      expect(mockWriteFileSync).toHaveBeenCalled();
 
       const writeCalls = mockWriteFileSync.mock.calls;
-      const configWrite = writeCalls.find((call) =>
+      const configWrite = writeCalls.find((call: any) =>
         String(call[0]).includes("opencode.json"),
       );
 
-      if (configWrite) {
-        const content = JSON.parse(configWrite[1]);
-        expect(content.mcp.mgrep).toBeUndefined();
-        expect(content.mcp.other).toBeDefined();
-      }
-
-      consoleSpy.mockRestore();
+      expect(configWrite).toBeDefined();
+      const content = JSON.parse(configWrite[1]);
+      expect(content.mcp.mgrep).toBeUndefined();
+      expect(content.mcp.other).toBeDefined();
     });
 
     it("should handle missing tool file", async () => {
       mockExistsSync.mockReturnValue(false);
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await uninstallOpencode.parseAsync(["node", "test"]);
 
-      await uninstallOpencode.parseAsync([]);
-
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "The mgrep tool is not installed in the OpenCode agent",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle missing config file", async () => {
-      mockExistsSync.mockImplementation((path) => {
+      mockExistsSync.mockImplementation((path: string) => {
         if (String(path).includes("tool")) return true;
         if (String(path).includes("opencode.json")) return false;
         return false;
       });
 
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      await uninstallOpencode.parseAsync([]);
+      await uninstallOpencode.parseAsync(["node", "test"]);
 
       expect(mockUnlinkSync).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(console.log).toHaveBeenCalledWith(
         "The mgrep is not installed in the OpenCode agent",
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should handle uninstall errors", async () => {
@@ -226,23 +196,16 @@ describe("opencode installer", () => {
         throw new Error("Delete failed");
       });
 
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
+      const exitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((() => {}) as any);
 
-      try {
-        await uninstallOpencode.parseAsync([]);
-      } catch (e) {
-        // Expected
-      }
+      await uninstallOpencode.parseAsync(["node", "test"]);
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining("Error uninstalling plugin"),
       );
-
-      errorSpy.mockRestore();
-      exitSpy.mockRestore();
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 });
