@@ -1,91 +1,60 @@
 # Data Flow Analysis
 
-## Data Models Overview
+## Data Models
 
-The system centers around several key data models that define how code, documentation, and metadata are represented:
+The system uses several core data structures to manage the lifecycle of information from ingestion to retrieval:
 
-- **MgrepConfig**: A structured configuration model validated using Zod. It includes settings for `qdrant`, `embeddings`, `llm`, `sync`, and `tavily`.
-- **FileMetadata**: Tracks the state of a file on disk, including its absolute `path`, `hash` (SHA-256), `size`, and `mtimeMs` (modification time).
-- **StoreFile**: Represents a file entry within the vector store, linking an `external_id` (usually the file path) to its `FileMetadata`.
-- **Chunk Models**:
-    - **BaseChunk**: Common properties like `score`, `chunk_index`, and `metadata`.
-    - **TextChunk**: Contains raw `text` and line range information (`start_line`, `num_lines`).
-    - **Multimedia Chunks**: `ImageURLChunk`, `AudioURLChunk`, and `VideoURLChunk` for multi-modal data.
-- **QdrantPayload**: The internal schema stored in Qdrant's payload, containing `path_scopes` (for hierarchical path filtering), `content`, and indexing metadata.
-- **Provider Models**:
-    - **EmbeddingResult**: Contains the float array (`embedding`) and `tokenCount`.
-    - **ChatMessage**: standard `role`/`content` pairs for LLM interactions.
-    - **CompletionResult**: The LLM output and token usage statistics.
+*   **MgrepConfig**: A validated configuration object (using Zod) that defines provider settings (OpenAI, Google, Anthropic, Ollama), Qdrant connection details, and synchronization parameters.
+*   **FileMetadata**: Tracks individual file identity and state, including the relative `path`, a SHA256 `hash` of content, file `size`, and modification time (`mtimeMs`).
+*   **ChunkType**: The atomic unit of searchable data. It exists in various forms:
+    *   **TextChunk**: Contains a segment of text, its line range (`start_line`, `num_lines`), and a relevance `score`.
+    *   **Media Chunks**: `ImageURLChunk`, `AudioURLChunk`, and `VideoURLChunk` structures for multimodal data.
+*   **StoreFile**: Represents a file record in the storage layer, linking an `external_id` (usually the file path) to its `FileMetadata`.
+*   **SearchResponse / AskResponse**: Wrapper structures for search results, where `AskResponse` includes a generated natural language answer alongside the source chunks.
 
-## Data Transformation Map
+## Input Sources
 
-Data undergoes several transformations as it moves from the filesystem to the user:
+Data enters the system through multiple channels:
 
-1.  **Ingestion & Hashing**: Files are read from the filesystem; SHA-256 hashes and metadata (size/mtime) are computed to determine if a file needs re-indexing.
-2.  **Chunking**: Large text files are broken down into overlapping segments (default: 50 lines per chunk with 10 lines overlap) to ensure context is preserved for vector search.
-3.  **Vectorization**: Chunks of text are sent to an `EmbeddingsClient` (e.g., OpenAI, Google) which transforms strings into high-dimensional vector embeddings.
-4.  **Payload Augmentation**: Metadata is enriched with "path scopes" (e.g., `/a/b/c` becomes `['/a', '/a/b', '/a/b/c']`) to allow prefix-based filtering in searches.
-5.  **Search Retrieval**: User queries are transformed into vectors, which are used for cosine similarity searches against the Qdrant database.
-6.  **RAG Augmentation (Ask)**: Retrieved chunks are injected into a system prompt. The LLM processes these chunks to generate a natural language answer with `<cite>` tags.
-7.  **Web Search Integration**: Queries sent to Tavily return web content which is transformed into the standard `TextChunk` format, allowing web results to be treated identically to local file results.
+*   **Local File System**: The primary source. Files are read from the project root and its subdirectories.
+*   **CLI Arguments & Environment Variables**: Configuration overrides (e.g., `MGREP_STORE`) and search queries are provided via the command line or `process.env`.
+*   **Configuration Files**: Persistent settings are loaded from `.mgreprc.yaml`, `.mgreprc.yml`, or global config directories.
+*   **Web API (Tavily)**: External web search results are ingested and converted into the internal `TextChunk` format for unified processing.
+*   **MCP (Model Context Protocol)**: In `watch-mcp` mode, inputs arrive as JSON-RPC tool calls from external LLM clients.
 
-## Storage Interactions
+## Data Transformations
 
-- **Vector Database (Qdrant)**: Acts as the primary persistence layer for indexed data. It stores both the high-dimensional vectors and the structured payload.
-- **Filesystem**: 
-    - **Source Data**: The application reads local source code and documents.
-    - **Configuration**: Persists settings in `.mgreprc.yaml` (local) or global config directories.
-- **Memory**: The `configCache` (a `Map`) stores parsed configurations to avoid redundant disk I/O during single CLI executions.
-- **External APIs**: Data is sent to and received from OpenAI, Google, Anthropic, or Tavily services during the embedding, completion, and web search phases.
+The system performs several stages of data transformation to enable semantic search:
 
-## Validation Mechanisms
+1.  **File to Buffer**: Files are read into memory buffers for hashing and processing.
+2.  **Hashing**: Buffers are transformed into SHA256 hex strings to detect changes and avoid redundant indexing.
+3.  **Text Splitting (Chunking)**: Large text files are divided into overlapping segments (default 50 lines with 10-line overlap) to maintain context while staying within embedding token limits.
+4.  **Vectorization (Embedding)**: Text chunks are sent to an Embedding Provider (OpenAI, Google, or Ollama) which transforms text into high-dimensional numerical vectors (embeddings).
+5.  **Query Vectorization**: Natural language queries are transformed using the same embedding model to allow for cosine similarity matching in the vector space.
+6.  **Context Augmentation (RAG)**: Search results and the original query are bundled into a prompt for an LLM to transform raw chunks into a coherent answer.
 
-- **Schema Validation**: Uses `zod` to enforce strict structures on configuration files (`ConfigSchema`), ensuring that provider settings and API keys are correctly formatted.
-- **Data Integrity**: SHA-256 hashing verifies that the content in the vector store matches the local filesystem.
-- **File Constraints**: `exceedsMaxFileSize` logic prevents the system from attempting to process or upload excessively large files (default limit: 10MB).
-- **Type Checking**: Uses `istextorbinary` to skip binary files during text-based indexing operations.
-- **Path Validation**: `normalize` and `resolve` are used to ensure file paths are consistent across different OS environments before being used as `external_id`s.
+## Storage Mechanisms
 
-## State Management Analysis
+*   **Qdrant**: A persistent vector database used to store embeddings and their associated payloads (text content and metadata). It uses payload indexing on `external_id`, `path`, and `path_scopes` for efficient filtering.
+*   **Memory Cache**: 
+    *   Configuration settings are cached in-memory after the first load.
+    *   `NodeFileSystem` maintains an `ignoreCache` to store compiled `.gitignore` and `.mgrepignore` rules.
+*   **Local File System**: Used for storing `.mgreprc.yaml` and `.mgrepignore` files.
 
-The application is largely stateless between CLI invocations, relying on persistent storage to maintain context:
+## Data Validation
 
-- **Sync State**: Managed by comparing local file metadata against the metadata stored in Qdrant's payload. The "state" of the index is the delta between these two sets.
-- **CLI Options**: Commander.js manages the transient state of command-line flags (e.g., `--dry-run`, `--force`) which override the persistent configuration.
-- **Concurrency Control**: `p-limit` is used to manage the state of active network requests during bulk indexing, preventing rate-limiting or socket exhaustion.
-- **Progress Tracking**: The `InitialSyncProgress` object maintains the count of processed, uploaded, and deleted files during a sync operation.
+Validation occurs at critical junctions to ensure system stability:
 
-## Serialization Processes
+*   **Schema Validation**: The `zod` library validates the entire configuration object against `ConfigSchema` upon loading.
+*   **File Filtering**: 
+    *   **Ignore Patterns**: The `ignore` library filters files based on `.gitignore`, `.mgrepignore`, and hardcoded `DEFAULT_IGNORE_PATTERNS`.
+    *   **Size Limits**: Files exceeding `maxFileSize` (default 10MB) are rejected before reading.
+*   **Type Safety**: TypeScript interfaces and type guards (e.g., `isWebResult`) ensure data integrity across the pipeline.
+*   **CLI Inputs**: `commander` validates that required options are present and that numeric inputs (like `--max-results`) are valid.
 
-- **YAML Serialization**: Configuration files are parsed from and serialized to YAML format using the `yaml` library.
-- **Vector Serialization**: Embedding vectors are handled as `number[]` arrays and serialized to JSON for transmission to Qdrant or Embedding providers.
-- **UUID Generation**: Deterministic point IDs for Qdrant are generated by hashing the `external_id` and `chunk_index` and formatting them as UUID-compatible strings.
-- **Citations**: In the `ask` command, citations are serialized into the LLM output as `<cite i="N">` tags, which are then parsed via Regex to link answers back to source chunks.
+## Output Formats
 
-## Data Lifecycle Diagrams
-
-### Ingestion & Sync Flow
-```mermaid
-graph TD
-    A[Local Filesystem] --> B{Hash/Stat Match?}
-    B -- Yes --> C[Skip]
-    B -- No --> D[Read Content]
-    D --> E[Chunk Text]
-    E --> F[Generate Embeddings]
-    F --> G[Generate Path Scopes]
-    G --> H[Upsert to Qdrant]
-```
-
-### Search & Ask Flow
-```mermaid
-graph TD
-    Query[User Query] --> Embed[Embed Query]
-    Embed --> VectorSearch[Qdrant Search]
-    VectorSearch --> Chunks[Scored Chunks]
-    Chunks --> RAG{Command?}
-    RAG -- search --> Output[Format & Print]
-    RAG -- ask --> LLM[LLM Context Augmentation]
-    LLM --> Answer[Generate Answer with Cites]
-    Answer --> Format[Format & Link Sources]
-    Format --> Output
-```
+*   **Standard Console Output**: Formatted text including file paths with line ranges, relevance percentages, and optionally the chunk content.
+*   **LLM Answers**: Natural language responses with embedded citations (e.g., `<cite i="0"/>`) linking to sources.
+*   **MCP Tool Responses**: Structured JSON objects containing tool execution results, formatted for consumption by LLM clients.
+*   **Progress Indicators**: Real-time terminal updates (via `ora` spinners) showing sync progress, upload counts, and error summaries.

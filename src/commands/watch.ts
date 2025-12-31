@@ -9,7 +9,6 @@ import {
   reloadConfig,
 } from "../lib/config.js";
 import { createFileSystem, createStore } from "../lib/context.js";
-import { DEFAULT_IGNORE_PATTERNS } from "../lib/file.js";
 import {
   createIndexingSpinner,
   formatDryRunSummary,
@@ -28,9 +27,6 @@ export async function startWatch(options: WatchOptions): Promise<void> {
   try {
     const store = await createStore();
 
-    const fileSystem = createFileSystem({
-      ignorePatterns: [...DEFAULT_IGNORE_PATTERNS],
-    });
     const watchRoot = process.cwd();
     const cliOptions: CliConfigOptions = {
       maxFileSize: options.maxFileSize,
@@ -39,6 +35,11 @@ export async function startWatch(options: WatchOptions): Promise<void> {
     // Mutable config that can be reloaded
     let currentConfig: MgrepConfig = loadConfig(watchRoot, cliOptions);
     console.debug("Watching for file changes in", watchRoot);
+
+    const fileSystem = createFileSystem({
+      ignorePatterns: [],
+      ignoreConfig: currentConfig.ignore,
+    });
 
     const { spinner, onProgress } = createIndexingSpinner(watchRoot);
     try {

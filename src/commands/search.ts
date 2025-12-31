@@ -11,7 +11,6 @@ import {
   createStore,
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
-import { DEFAULT_IGNORE_PATTERNS } from "../lib/file.js";
 import type { WebSearchClient } from "../lib/providers/web/index.js";
 import type {
   AskResponse,
@@ -182,7 +181,8 @@ async function syncFiles(
 
   try {
     const fileSystem = createFileSystem({
-      ignorePatterns: [...DEFAULT_IGNORE_PATTERNS],
+      ignorePatterns: [],
+      ignoreConfig: config?.ignore,
     });
     const result = await initialSync(
       store,

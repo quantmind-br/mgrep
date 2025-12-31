@@ -1,87 +1,64 @@
 # Request Flow Analysis
 
-## Entry Points Overview
+The `mgrep` project is a command-line utility and Model Context Protocol (MCP) server for semantic search and Retrieval-Augmented Generation (RAG) over local codebases. It processes requests either via CLI commands or JSON-RPC over Standard Input/Output (MCP).
 
-The `mgrep` system features two primary entry points that cater to different usage modes:
+## API Endpoints
 
-1.  **CLI Entry Point (`src/index.ts`)**: The main command-line interface built with `commander`. It parses terminal arguments and routes them to specific command handlers.
-2.  **MCP Entry Point (`src/commands/watch_mcp.ts`)**: A Model Context Protocol (MCP) server that exposes `mgrep` capabilities as tools for AI models. It communicates via JSON-RPC over standard input/output (`StdioServerTransport`).
+The application exposes tools through the Model Context Protocol (MCP), which acts as a set of functional endpoints for LLMs. These are defined in `src/commands/watch_mcp.ts`.
 
-## Request Routing Map
+### MCP Tools (JSON-RPC Endpoints)
+- **`mgrep-search`**: Semantic search over indexed files using natural language.
+- **`mgrep-ask`**: RAG-based question answering about the codebase.
+- **`mgrep-web-search`**: Web search integration via Tavily.
+- **`mgrep-sync`**: Synchronizes local file system state with the vector store.
+- **`mgrep-get-file`**: Retrieves specific file content with optional line ranges and security checks.
+- **`mgrep-list-files`**: Lists indexed files with pagination and prefix filtering.
+- **`mgrep-get-context`**: Retrieves surrounding lines of code for a specific file/line.
+- **`mgrep-stats`**: Returns metadata and file counts from the indexed store.
 
-Routing is handled differently based on the entry point:
+### CLI Commands
+- **`mgrep [query]`**: Default command for semantic search or RAG (if `--ask` is provided).
+- **`mgrep watch`**: Starts a background process to monitor file changes.
+- **`mgrep mcp`**: Starts the MCP server (Stdio transport).
+- **`mgrep install-*`**: Commands to register `mgrep` with various AI clients (Claude, Cursor, etc.).
+
+## Request Processing Pipeline
+
+1.  **Entry Point**: `src/index.ts` uses `commander` to parse CLI arguments.
+2.  **Initialization**: 
+    - Logger setup (`setupLogger`).
+    - Configuration loading (`loadConfig` from `~/.mgreprc.yaml` or project root).
+    - Provider initialization (LLM, Embeddings, and Store clients).
+3.  **Transport (MCP)**: For `watchMcp`, a `StdioServerTransport` is established. Standard output is redirected to stderr to prevent corruption of the JSON-RPC stream.
+4.  **Security Middleware (Implicit)**: In `mgrep-get-file`, requests pass through a validation layer that ensures paths are within the project root and resolves symlinks to prevent directory traversal.
+5.  **Execution**: The request is dispatched to the corresponding handler in `src/commands/watch_mcp.ts` or `src/commands/search.ts`.
+
+## Routing Logic
 
 ### CLI Routing
-The `commander` library manages the routing of CLI commands:
-*   `mgrep search [pattern] [path]`: Routes to the `search` handler in `src/commands/search.ts`.
-*   `mgrep watch`: Routes to the `watch` handler in `src/commands/watch.ts`.
-*   `mgrep mcp`: Routes to the `watchMcp` handler in `src/commands/watch_mcp.ts`.
-*   `mgrep install-*` / `mgrep uninstall-*`: Routes to integration scripts in `src/install/`.
+`commander` routes input to the appropriate command handler based on the subcommand (e.g., `search`, `mcp`, `watch`).
 
 ### MCP Routing
-The MCP server uses the `@modelcontextprotocol/sdk` to route tool calls:
-*   `ListToolsRequest`: Returns a list of available tools (`mgrep-search`, `mgrep-ask`, `mgrep-web-search`, `mgrep-sync`).
-*   `CallToolRequest`: Routes the request to the appropriate logic based on the `name` parameter:
-    *   `mgrep-search`: Performs semantic search over indexed files.
-    *   `mgrep-ask`: Performs RAG-based question answering.
-    *   `mgrep-web-search`: Triggers an external web search via Tavily.
-    *   `mgrep-sync`: Force-synchronizes local files with the vector store.
+The `Server.setRequestHandler` from the `@modelcontextprotocol/sdk` is used:
+- **`ListToolsRequestSchema`**: Returns the list of available tools.
+- **`CallToolRequestSchema`**: Uses a `switch(name)` statement to route tool calls to their respective logic blocks based on the `name` parameter in the JSON-RPC request.
 
-## Middleware Pipeline
+## Response Generation
 
-While not using traditional HTTP middleware, the system follows a consistent preprocessing pipeline for every request:
+### MCP Responses
+- Handlers return objects matching the MCP `CallToolResult` schema.
+- Content is typically wrapped in a `text` type.
+- **Formatting**: Internal helpers like `formatSearchResultsForMcp` and `formatAskResultsForMcp` convert raw store data or LLM responses into human-readable (or LLM-readable) strings, including relevance scores and citations.
+- **JSON Serialization**: Complex data (like file content metadata) is returned as stringified JSON within the MCP text block.
 
-1.  **Logger Initialization**: `setupLogger()` is invoked at the start of `src/index.ts`.
-2.  **Configuration Loading**: `loadConfig()` reads settings from `.mgreprc.yaml`, environment variables, and CLI overrides.
-3.  **Context Creation**: `createStore()` initializes the `QdrantStore` along with the necessary embedding and LLM providers based on the loaded configuration.
-4.  **Sync Check (Conditional)**: If synchronization is requested (or automatic in watch mode), `initialSync` is executed to ensure the vector store is up-to-date with local files before the search/ask request is processed.
+### CLI Responses
+- Search results and RAG answers are printed to `stdout`.
+- Progress indicators (spinners) and logs are sent to `stderr`.
 
-## Controller/Handler Analysis
+## Error Handling
 
-The core logic resides in the command handlers:
-
-*   **Search Handler (`src/commands/search.ts`)**: Processes semantic search queries. It uses `store.search` for retrieval and can optionally incorporate web results from `performWebSearch`. It also supports RAG via `store.ask`.
-*   **Watch Handler (`src/commands/watch.ts`)**: Implements a persistent file watcher using `fs.watch`. It listens for file system events (change, rename, delete) and updates the vector store in real-time.
-*   **MCP Handler (`src/commands/watch_mcp.ts`)**: Acts as a bridge between MCP tool calls and the underlying `Store` methods. It manages its own request-response formatting optimized for LLM consumption.
-
-## Authentication & Authorization Flow
-
-`mgrep` does not implement user-level authentication but manages service-level authentication through API keys:
-
-1.  **Key Retrieval**: API keys for Qdrant, OpenAI/Anthropic/Google, and Tavily are retrieved during the configuration loading phase.
-2.  **Provider Injection**: These keys are passed into the provider clients (Embeddings, LLM, Store) within `src/lib/context.ts`.
-3.  **Request Authorization**: Every request to external services (like Qdrant or an LLM provider) includes these keys in the authorization headers.
-
-## Error Handling Pathways
-
-Error handling is structured to provide clear feedback and maintain stability:
-
-*   **CLI Errors**: Wrapped in `try...catch` blocks. Errors are logged to `console.error`, and `process.exitCode` is set to 1 to signal failure to the terminal.
-*   **MCP Errors**: Uses the `McpError` class and standard `ErrorCode` constants. Errors are returned as formal JSON-RPC error responses. Logs are redirected to `stderr` to avoid corrupting the `stdout` communication channel.
-*   **Validation Errors**: The system uses `zod` schemas in `src/lib/config.ts` to validate configuration files and `commander`/`MCP` schemas to validate input parameters.
-
-## Request Lifecycle Diagram
-
-```mermaid
-graph TD
-    A[User/LLM Request] --> B{Entry Point}
-    B -->|CLI| C[Commander Router]
-    B -->|MCP| D[MCP Server Router]
-    
-    C --> E[loadConfig]
-    D --> E
-    
-    E --> F[createStore]
-    F --> G[Sync Logic (initialSync)]
-    
-    G --> H{Handler Logic}
-    H -->|Search| I[store.search]
-    H -->|Ask| J[store.ask / LLM RAG]
-    H -->|Web| K[Tavily Search]
-    
-    I --> L[Format Response]
-    J --> L
-    K --> L
-    
-    L --> M[Output to Terminal / MCP Client]
-```
+1.  **Protocol Errors**: `McpError` class is used to return standard JSON-RPC errors (e.g., `InvalidParams`, `InternalError`).
+2.  **Graceful Shutdown**: SIGINT and SIGTERM handlers ensure the MCP server or watch process exits cleanly.
+3.  **Global Catch-all**: `unhandledRejection` and `uncaughtException` listeners log fatal errors to `stderr`.
+4.  **Local Try-Catch**: Each tool handler contains try-catch blocks to catch provider errors (e.g., API failures from Anthropic or Qdrant) and translate them into meaningful MCP error messages.
+5.  **Validation**: Input parameters (like `query` or `path`) are checked at the start of handlers, throwing `ErrorCode.InvalidParams` if requirements aren't met.

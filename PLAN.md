@@ -1,552 +1,906 @@
-# Plano de Implementação: Ferramentas MCP Completas
+# Plano de Melhoria: Padrões de Ignore do mgrep
 
-## Sumário Executivo
+## Sumario Executivo
 
-Este documento detalha o plano para completar as ferramentas MCP do mgrep, adicionando ferramentas de utilidade e introspecção de arquivos às 4 ferramentas já implementadas.
+Este documento detalha um plano abrangente para melhorar os padroes de ignore do mgrep, baseado em pesquisa de ferramentas de referencia (ripgrep, Silver Searcher, GitHub Linguist, Semgrep) e melhores praticas da industria.
 
-**Estado Atual**: O servidor MCP já possui 4 ferramentas funcionais:
-| Ferramenta | Descrição |
-|------------|-----------|
-| `mgrep-search` | Busca semântica com filtro por path e reranking |
-| `mgrep-ask` | RAG com citações de fontes |
-| `mgrep-web-search` | Busca web via Tavily |
-| `mgrep-sync` | Sincronização de arquivos com o store |
+**Estado Atual**: O mgrep possui um sistema basico de ignore:
+- `DEFAULT_IGNORE_PATTERNS`: 7 padroes hardcoded
+- Respeita `.gitignore` e `.mgrepignore`
+- Detecta binarios via `istextorbinary`
+- Ignora arquivos ocultos (dotfiles)
 
-**Objetivo**: Adicionar 4 ferramentas de utilidade, atingir 80%+ de cobertura de testes, e atualizar documentação.
-
----
-
-## Fase 1: Novas Ferramentas
-
-### 1.1 `mgrep-get-file`
-
-**Propósito**: Recuperar conteúdo de arquivo com suporte a range de linhas e proteções de segurança.
-
-```typescript
-{
-  name: "mgrep-get-file",
-  description: "Retrieve file content with optional line range. Returns truncated content for large files.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string", description: "Absolute or relative path to the file" },
-      start_line: { type: "number", description: "Starting line (1-indexed)", minimum: 1 },
-      end_line: { type: "number", description: "Ending line (inclusive)", minimum: 1 }
-    },
-    required: ["path"]
-  }
-}
-```
-
-**Implementação** (`src/commands/watch_mcp.ts`):
-
-```typescript
-case "mgrep-get-file": {
-  const filePath = args?.path as string;
-  const startLine = args?.start_line as number | undefined;
-  const endLine = args?.end_line as number | undefined;
-
-  if (!filePath) {
-    throw new McpError(ErrorCode.InvalidParams, "Path parameter is required");
-  }
-
-  // Resolve path and validate
-  const resolved = filePath.startsWith("/")
-    ? filePath
-    : normalize(join(root, filePath));
-
-  // Security: Prevent path traversal
-  if (!resolved.startsWith(root)) {
-    throw new McpError(ErrorCode.InvalidParams, "Path must be within project root");
-  }
-
-  // Security: Check symlinks don't escape root
-  try {
-    const stats = await fs.promises.lstat(resolved);
-    if (stats.isSymbolicLink()) {
-      const realPath = await fs.promises.realpath(resolved);
-      if (!realPath.startsWith(root)) {
-        throw new McpError(ErrorCode.InvalidParams, "Symlink points outside project root");
-      }
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new McpError(ErrorCode.InvalidParams, `File not found: ${filePath}`);
-    }
-    throw error;
-  }
-
-  const MAX_LINES = 2000;
-  const MAX_BYTES = 100 * 1024; // 100KB
-
-  const stat = await fs.promises.stat(resolved);
-  const content = await fs.promises.readFile(resolved, "utf-8");
-  const lines = content.split("\n");
-
-  let resultLines = lines;
-  let truncated = false;
-
-  // Apply line range filter
-  if (startLine || endLine) {
-    const start = (startLine ?? 1) - 1;
-    const end = endLine ?? lines.length;
-    resultLines = lines.slice(start, end);
-  }
-
-  // Apply size limits with truncation
-  if (resultLines.length > MAX_LINES || stat.size > MAX_BYTES) {
-    resultLines = resultLines.slice(0, MAX_LINES);
-    truncated = true;
-  }
-
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify({
-        path: resolved.replace(root, "."),
-        content: resultLines.join("\n"),
-        total_lines: lines.length,
-        returned_lines: resultLines.length,
-        truncated,
-        size_bytes: stat.size,
-        modified_at: stat.mtime.toISOString(),
-        ...(truncated && { hint: "Use start_line/end_line to read specific sections" })
-      }, null, 2)
-    }]
-  };
-}
-```
-
-**Testes**:
-- Recuperar arquivo existente completo
-- Recuperar arquivo com range de linhas
-- Truncamento automático de arquivos grandes
-- Erro para arquivo inexistente
-- Erro para path traversal (`../../../etc/passwd`)
-- Erro para symlink apontando fora do root
+**Problema**: Padroes insuficientes resultam em:
+1. Indexacao de arquivos vendored (ex: `node_modules` fora de repos git)
+2. Indexacao de arquivos gerados (ex: `.min.js`, sourcemaps)
+3. Indexacao de lock files desnecessarios
+4. Falta de deteccao inteligente de binarios
 
 ---
 
-### 1.2 `mgrep-list-files`
+## Fase 1: Expansao de Padroes Padrao
 
-**Propósito**: Listar arquivos indexados com filtros e paginação.
+### 1.1 Padroes de Dependencias/Vendor (Alta Prioridade)
 
-```typescript
-{
-  name: "mgrep-list-files",
-  description: "List indexed files with optional path filtering and pagination.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path_prefix: { type: "string", description: "Filter by path prefix (e.g., 'src/lib')" },
-      limit: { type: "number", description: "Max files to return", default: 50, minimum: 1, maximum: 200 },
-      offset: { type: "number", description: "Skip N files (pagination)", default: 0, minimum: 0 },
-      include_hash: { type: "boolean", description: "Include file hash", default: false }
-    }
-  }
-}
-```
-
-**Implementação**:
+Baseado em GitHub Linguist `vendor.yml`:
 
 ```typescript
-case "mgrep-list-files": {
-  const pathPrefix = args?.path_prefix as string | undefined;
-  const limit = Math.min((args?.limit as number) ?? 50, 200);
-  const offset = (args?.offset as number) ?? 0;
-  const includeHash = (args?.include_hash as boolean) ?? false;
-
-  const absolutePrefix = pathPrefix
-    ? pathPrefix.startsWith("/") ? pathPrefix : normalize(join(root, pathPrefix))
-    : root;
-
-  const files: Array<{ path: string; hash?: string }> = [];
-  let skipped = 0;
-
-  for await (const file of store.listFiles(options.store, { pathPrefix: absolutePrefix })) {
-    if (skipped < offset) {
-      skipped++;
-      continue;
-    }
-    if (files.length >= limit) break;
-
-    const relativePath = file.metadata?.path?.replace(root, ".") ?? file.external_id ?? "unknown";
-    files.push({
-      path: relativePath,
-      ...(includeHash && file.metadata?.hash ? { hash: file.metadata.hash } : {})
-    });
-  }
-
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify({
-        files,
-        count: files.length,
-        offset,
-        has_more: files.length === limit
-      }, null, 2)
-    }]
-  };
-}
+// src/lib/file.ts - VENDOR_PATTERNS
+export const VENDOR_PATTERNS: readonly string[] = [
+  // Node.js
+  "node_modules/",
+  ".yarn/releases/",
+  ".yarn/plugins/",
+  ".yarn/sdks/",
+  ".yarn/unplugged/",
+  ".pnp.*",
+  
+  // Python
+  "venv/",
+  ".venv/",
+  "env/",
+  ".env/",
+  "__pycache__/",
+  "*.egg-info/",
+  ".eggs/",
+  "site-packages/",
+  
+  // Ruby
+  "vendor/bundle/",
+  
+  // Go
+  "vendor/",
+  "Godeps/",
+  
+  // PHP
+  "vendor/",
+  
+  // Rust
+  "target/",
+  
+  // .NET
+  "packages/",
+  "bin/",
+  "obj/",
+  
+  // iOS/macOS
+  "Pods/",
+  "Carthage/Build/",
+  
+  // Java/Kotlin
+  "gradle/wrapper/",
+  ".gradle/",
+  
+  // Generic
+  "bower_components/",
+  "jspm_packages/",
+  "web_modules/",
+  "deps/",
+  "third_party/",
+  "third-party/",
+  "3rdparty/",
+  "externals/",
+  "external/",
+];
 ```
 
-**Nota**: `TestStore.listFiles` já implementa `pathPrefix` corretamente (verificado em `src/lib/store.ts:284-302`).
+### 1.2 Padroes de Arquivos Gerados (Alta Prioridade)
 
-**Testes**:
-- Listar todos os arquivos
-- Filtrar por path_prefix
-- Paginação com offset/limit
-- Verificar include_hash
+Baseado em GitHub Linguist `generated.rb`:
+
+```typescript
+// src/lib/file.ts - GENERATED_PATTERNS
+export const GENERATED_PATTERNS: readonly string[] = [
+  // Minified files
+  "*.min.js",
+  "*.min.css",
+  "*.min.mjs",
+  "*-min.js",
+  "*-min.css",
+  
+  // Source maps
+  "*.map",
+  "*.js.map",
+  "*.css.map",
+  
+  // Bundled output
+  "dist/",
+  "build/",
+  "out/",
+  ".next/",
+  ".nuxt/",
+  ".output/",
+  ".svelte-kit/",
+  
+  // Lock files
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lockb",
+  "bun.lock",
+  "composer.lock",
+  "Gemfile.lock",
+  "Cargo.lock",
+  "poetry.lock",
+  "pdm.lock",
+  "uv.lock",
+  "pixi.lock",
+  "Pipfile.lock",
+  "go.sum",
+  "Gopkg.lock",
+  "glide.lock",
+  "flake.lock",
+  "deno.lock",
+  "Package.resolved",
+  ".terraform.lock.hcl",
+  "MODULE.bazel.lock",
+  "pnpm-workspace.yaml",
+  
+  // Generated code markers
+  "*.generated.*",
+  "*.g.dart",
+  "*.freezed.dart",
+  "*.gr.dart",
+  "*.pb.go",
+  "*.pb.cc",
+  "*.pb.h",
+  "*.pb.js",
+  "*.pb.ts",
+  "*_pb2.py",
+  "*.designer.cs",
+  "*.designer.vb",
+  
+  // Proto/Thrift generated
+  "__generated__/",
+  
+  // Type definitions (vendored)
+  "*.d.ts",
+  
+  // IDE generated
+  ".idea/",
+  "*.xcworkspacedata",
+  "*.xcuserstate",
+  
+  // Test fixtures/snapshots
+  "__snapshots__/",
+  "*.snap",
+  
+  // Coverage reports  
+  "coverage/",
+  "htmlcov/",
+  ".nyc_output/",
+  
+  // Documentation generated
+  "docs/_build/",
+  "site/",
+  "_site/",
+  "javadoc/",
+  "apidoc/",
+];
+```
+
+### 1.3 Padroes de Arquivos Binarios (Media Prioridade)
+
+Expandir `DEFAULT_IGNORE_PATTERNS`:
+
+```typescript
+// src/lib/file.ts - BINARY_PATTERNS
+export const BINARY_PATTERNS: readonly string[] = [
+  // Existing patterns
+  "*.lock",
+  "*.bin",
+  "*.ipynb",
+  "*.pyc",
+  "*.safetensors",
+  "*.sqlite",
+  "*.pt",
+  
+  // Executables
+  "*.exe",
+  "*.dll",
+  "*.so",
+  "*.dylib",
+  "*.a",
+  "*.lib",
+  "*.o",
+  "*.obj",
+  "*.class",
+  "*.jar",
+  "*.war",
+  "*.ear",
+  
+  // Archives
+  "*.zip",
+  "*.tar",
+  "*.gz",
+  "*.bz2",
+  "*.xz",
+  "*.7z",
+  "*.rar",
+  "*.tgz",
+  "*.tbz2",
+  
+  // Images
+  "*.png",
+  "*.jpg",
+  "*.jpeg",
+  "*.gif",
+  "*.bmp",
+  "*.ico",
+  "*.icns",
+  "*.webp",
+  "*.avif",
+  "*.heic",
+  "*.heif",
+  "*.tiff",
+  "*.tif",
+  "*.psd",
+  "*.ai",
+  "*.eps",
+  "*.svg",  // Opcional - pode conter codigo
+  
+  // Audio/Video
+  "*.mp3",
+  "*.mp4",
+  "*.wav",
+  "*.ogg",
+  "*.flac",
+  "*.aac",
+  "*.m4a",
+  "*.wma",
+  "*.avi",
+  "*.mkv",
+  "*.mov",
+  "*.wmv",
+  "*.flv",
+  "*.webm",
+  
+  // Fonts
+  "*.ttf",
+  "*.otf",
+  "*.woff",
+  "*.woff2",
+  "*.eot",
+  
+  // Documents
+  "*.pdf",
+  "*.doc",
+  "*.docx",
+  "*.xls",
+  "*.xlsx",
+  "*.ppt",
+  "*.pptx",
+  "*.odt",
+  "*.ods",
+  "*.odp",
+  
+  // Databases
+  "*.db",
+  "*.sqlite3",
+  "*.mdb",
+  "*.accdb",
+  
+  // Machine Learning
+  "*.onnx",
+  "*.h5",
+  "*.hdf5",
+  "*.pkl",
+  "*.pickle",
+  "*.joblib",
+  "*.npy",
+  "*.npz",
+  "*.ckpt",
+  "*.pth",
+  "*.model",
+  "*.weights",
+  
+  // Game/3D assets
+  "*.fbx",
+  "*.obj",
+  "*.gltf",
+  "*.glb",
+  "*.blend",
+  "*.unity",
+  "*.prefab",
+  "*.asset",
+];
+```
+
+### 1.4 Padroes de CI/Config (Baixa Prioridade)
+
+```typescript
+// src/lib/file.ts - CONFIG_PATTERNS (opcional, pode ser controverso)
+export const CONFIG_PATTERNS: readonly string[] = [
+  // CI/CD
+  ".github/",
+  ".gitlab/",
+  ".circleci/",
+  ".travis.yml",
+  "Jenkinsfile",
+  "azure-pipelines.yml",
+  
+  // Containerization
+  "Dockerfile*",
+  "docker-compose*.yml",
+  ".dockerignore",
+  
+  // Editor/IDE settings
+  ".vscode/",
+  ".idea/",
+  "*.sublime-*",
+  ".editorconfig",
+  
+  // Git
+  ".gitattributes",
+  ".gitmodules",
+  
+  // Dependency managers config
+  ".npmrc",
+  ".yarnrc*",
+  ".nvmrc",
+  ".python-version",
+  ".ruby-version",
+  ".node-version",
+  "Brewfile",
+];
+```
 
 ---
 
-### 1.3 `mgrep-get-context`
+## Fase 2: Arquitetura de Configuracao
 
-**Propósito**: Obter contexto expandido ao redor de uma linha específica.
+### 2.1 Estrutura de Padroes por Categoria
 
 ```typescript
-{
-  name: "mgrep-get-context",
-  description: "Get expanded context around a specific line in a file.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string", description: "Path to the file" },
-      line: { type: "number", description: "Center line number (1-indexed)", minimum: 1 },
-      context_lines: { type: "number", description: "Lines before/after", default: 20, minimum: 1, maximum: 100 }
-    },
-    required: ["path", "line"]
-  }
+// src/lib/ignore-patterns.ts (novo arquivo)
+
+export interface IgnoreCategory {
+  name: string;
+  description: string;
+  patterns: readonly string[];
+  enabled: boolean;  // padrao
+}
+
+export const IGNORE_CATEGORIES: IgnoreCategory[] = [
+  {
+    name: "vendor",
+    description: "Third-party dependencies and vendor directories",
+    patterns: VENDOR_PATTERNS,
+    enabled: true,
+  },
+  {
+    name: "generated",
+    description: "Generated code, build outputs, and lock files",
+    patterns: GENERATED_PATTERNS,
+    enabled: true,
+  },
+  {
+    name: "binary",
+    description: "Binary and media files",
+    patterns: BINARY_PATTERNS,
+    enabled: true,
+  },
+  {
+    name: "config",
+    description: "Configuration and CI/CD files",
+    patterns: CONFIG_PATTERNS,
+    enabled: false,  // desabilitado por padrao - pode conter informacoes uteis
+  },
+];
+
+export function getDefaultIgnorePatterns(
+  enabledCategories?: string[]
+): string[] {
+  const categories = enabledCategories 
+    ? IGNORE_CATEGORIES.filter(c => enabledCategories.includes(c.name))
+    : IGNORE_CATEGORIES.filter(c => c.enabled);
+  
+  return categories.flatMap(c => [...c.patterns]);
 }
 ```
 
-**Implementação**:
+### 2.2 Configuracao via `.mgreprc.yaml`
 
-```typescript
-case "mgrep-get-context": {
-  const filePath = args?.path as string;
-  const centerLine = args?.line as number;
-  const contextLines = Math.min((args?.context_lines as number) ?? 20, 100);
+```yaml
+# .mgreprc.yaml exemplo
 
-  if (!filePath || !centerLine) {
-    throw new McpError(ErrorCode.InvalidParams, "path and line are required");
-  }
+# Habilitar/desabilitar categorias
+ignore:
+  categories:
+    vendor: true      # default: true
+    generated: true   # default: true  
+    binary: true      # default: true
+    config: false     # default: false
 
-  const resolved = filePath.startsWith("/")
-    ? filePath
-    : normalize(join(root, filePath));
+  # Padroes adicionais customizados
+  additional:
+    - "*.proprietary"
+    - "internal-tools/"
+    - "legacy/"
 
-  if (!resolved.startsWith(root)) {
-    throw new McpError(ErrorCode.InvalidParams, "Path must be within project root");
-  }
-
-  const content = await fs.promises.readFile(resolved, "utf-8");
-  const lines = content.split("\n");
-
-  if (centerLine > lines.length) {
-    throw new McpError(ErrorCode.InvalidParams, `Line ${centerLine} exceeds file length (${lines.length})`);
-  }
-
-  const start = Math.max(0, centerLine - 1 - contextLines);
-  const end = Math.min(lines.length, centerLine - 1 + contextLines + 1);
-  const contextSlice = lines.slice(start, end);
-
-  // Add line numbers
-  const numberedLines = contextSlice.map((line, i) => {
-    const lineNum = start + i + 1;
-    const marker = lineNum === centerLine ? ">" : " ";
-    return `${marker}${String(lineNum).padStart(4)} | ${line}`;
-  });
-
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify({
-        path: resolved.replace(root, "."),
-        center_line: centerLine,
-        start_line: start + 1,
-        end_line: end,
-        total_lines: lines.length,
-        context: numberedLines.join("\n")
-      }, null, 2)
-    }]
-  };
-}
+  # Excecoes (negar padroes)
+  exceptions:
+    - "!dist/index.js"       # manter este arquivo especifico
+    - "!*.d.ts"              # manter type definitions
+    - "!vendor/important/"   # manter este vendor
 ```
 
-**Testes**:
-- Contexto no meio do arquivo
-- Contexto no início (edge case)
-- Contexto no final (edge case)
-- Erro para linha fora do range
-
----
-
-### 1.4 `mgrep-stats`
-
-**Propósito**: Estatísticas do store indexado.
+### 2.3 Schema Zod Atualizado
 
 ```typescript
-{
-  name: "mgrep-stats",
-  description: "Get statistics about the indexed store.",
-  inputSchema: { type: "object", properties: {} }
-}
-```
+// src/lib/config.ts
 
-**Implementação**:
+const IgnoreConfigSchema = z.object({
+  categories: z.object({
+    vendor: z.boolean().default(true),
+    generated: z.boolean().default(true),
+    binary: z.boolean().default(true),
+    config: z.boolean().default(false),
+  }).default({}),
+  additional: z.array(z.string()).default([]),
+  exceptions: z.array(z.string()).default([]),
+}).default({});
 
-```typescript
-case "mgrep-stats": {
-  let fileCount = 0;
-  for await (const _ of store.listFiles(options.store)) {
-    fileCount++;
-  }
-
-  const info = await store.getInfo(options.store);
-
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify({
-        store_name: info.name,
-        description: info.description,
-        file_count: fileCount,
-        created_at: info.created_at,
-        updated_at: info.updated_at,
-        pending_operations: info.counts.pending,
-        in_progress_operations: info.counts.in_progress,
-        root_path: root
-      }, null, 2)
-    }]
-  };
-}
-```
-
----
-
-## Fase 2: Testes
-
-### 2.1 Estrutura de Testes
-
-Expandir `src/commands/watch_mcp.test.ts` com os seguintes grupos:
-
-```typescript
-describe("MCP Tools", () => {
-  describe("mgrep-search", () => {
-    it("should return search results with correct format");
-    it("should filter by path when specified");
-    it("should respect max_results parameter");
-    it("should include content when include_content is true");
-    it("should handle empty results gracefully");
-    it("should throw McpError for missing query");
-  });
-
-  describe("mgrep-ask", () => {
-    it("should return answer with citations");
-    it("should filter by path when specified");
-    it("should throw McpError for missing question");
-  });
-
-  describe("mgrep-web-search", () => {
-    it("should return web results with URLs");
-    it("should handle Tavily API errors gracefully");
-    it("should throw McpError for missing query");
-  });
-
-  describe("mgrep-sync", () => {
-    it("should return sync summary");
-    it("should support dry_run mode");
-  });
-
-  describe("mgrep-get-file", () => {
-    it("should return file content");
-    it("should support line range filtering");
-    it("should truncate large files with warning");
-    it("should throw McpError for non-existent file");
-    it("should prevent path traversal attacks");
-    it("should block symlinks pointing outside root");
-  });
-
-  describe("mgrep-list-files", () => {
-    it("should list all indexed files");
-    it("should filter by path_prefix");
-    it("should paginate results correctly");
-  });
-
-  describe("mgrep-get-context", () => {
-    it("should return expanded context with line numbers");
-    it("should handle edge cases (start/end of file)");
-    it("should mark center line");
-  });
-
-  describe("mgrep-stats", () => {
-    it("should return store statistics");
-  });
+// Adicionar ao ConfigSchema
+export const ConfigSchema = z.object({
+  // ... existing fields
+  ignore: IgnoreConfigSchema,
 });
-
-describe("Security", () => {
-  it("should prevent path traversal in all file tools");
-  it("should block symlinks escaping project root");
-  it("should respect file system boundaries");
-});
 ```
-
-### 2.2 Meta de Cobertura
-
-| Componente | Meta |
-|------------|------|
-| `watch_mcp.ts` | 80% |
-| Ferramentas existentes | 85% |
-| Novas ferramentas | 90% |
-| Validações de segurança | 100% |
 
 ---
 
-## Fase 3: Documentação
+## Fase 3: Deteccao Inteligente
 
-### 3.1 README.md
+### 3.1 Deteccao de Arquivos Minificados
 
-Atualizar seção "MCP Server" (linhas ~161-165):
+Baseado em GitHub Linguist - detectar arquivos minificados por conteudo:
 
-```markdown
-### MCP Server
-- **Transport**: Standard Input/Output (Stdio)
-- **Behavior**: Automatically initializes file watcher upon startup
+```typescript
+// src/lib/file-analysis.ts
 
-#### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `mgrep-search` | Semantic search with path filtering and reranking |
-| `mgrep-ask` | RAG Q&A with source citations |
-| `mgrep-web-search` | Web search via Tavily (requires API key) |
-| `mgrep-sync` | Sync local files with vector store |
-| `mgrep-get-file` | Retrieve file content with line range support |
-| `mgrep-list-files` | List indexed files with pagination |
-| `mgrep-get-context` | Get expanded context around a line |
-| `mgrep-stats` | Get store statistics |
-
-#### Configuration for Claude Desktop
-
-```json
-// Option 1: Via npx (if package is published)
-{
-  "mcpServers": {
-    "mgrep": {
-      "command": "npx",
-      "args": ["mgrep", "mcp"],
-      "cwd": "/path/to/your/project"
-    }
+export function isMinified(content: string, extension: string): boolean {
+  // Apenas para .js e .css
+  if (!['.js', '.css', '.mjs'].includes(extension)) {
+    return false;
   }
-}
-
-// Option 2: Direct execution (local development)
-{
-  "mcpServers": {
-    "mgrep": {
-      "command": "node",
-      "args": ["/absolute/path/to/mgrep/dist/src/index.js", "mcp"],
-      "cwd": "/path/to/your/project"
-    }
-  }
+  
+  const lines = content.split('\n');
+  if (lines.length === 0) return false;
+  
+  // Minificado se linha media > 500 caracteres
+  const avgLineLength = content.length / lines.length;
+  if (avgLineLength > 500) return true;
+  
+  // Ou se tem menos de 10 linhas e > 10KB
+  if (lines.length < 10 && content.length > 10000) return true;
+  
+  return false;
 }
 ```
+
+### 3.2 Deteccao de Arquivos Gerados por Header
+
+```typescript
+// src/lib/file-analysis.ts
+
+const GENERATED_MARKERS = [
+  /^\/\/ Code generated .* DO NOT EDIT/i,
+  /^\/\/ Generated by /i,
+  /^# Generated by /i,
+  /^\/\* Generated by /i,
+  /^\/\/ This file is automatically generated/i,
+  /^# This file is automatically generated/i,
+  /^\/\/ AUTO-GENERATED/i,
+  /^# AUTO-GENERATED/i,
+  /^\/\*\s*eslint-disable\s*\*\/\s*$/,  // Comum em arquivos gerados
+];
+
+export function hasGeneratedMarker(content: string): boolean {
+  const firstLines = content.split('\n').slice(0, 10);
+  return firstLines.some(line => 
+    GENERATED_MARKERS.some(marker => marker.test(line.trim()))
+  );
+}
 ```
 
-### 3.2 CLAUDE.md
+### 3.3 Deteccao de Source Maps
 
-Adicionar ao final:
+```typescript
+// src/lib/file-analysis.ts
 
-```markdown
-## MCP Server Tools
+export function hasSourceMapReference(content: string): boolean {
+  const lastLines = content.split('\n').slice(-3);
+  return lastLines.some(line => 
+    /^\/[/*][@#]\s*sourceMappingURL=/.test(line) ||
+    /^\/[/*][@#]\s*sourceURL=/.test(line)
+  );
+}
+```
 
-The MCP server (`npm run start -- mcp`) exposes 8 tools:
+---
 
-### Core Tools
-- **mgrep-search**: `query`, `path?`, `max_results?`, `include_content?`, `rerank?`
-- **mgrep-ask**: `question`, `path?`, `max_results?`, `rerank?`
-- **mgrep-web-search**: `query`, `max_results?`, `include_content?`
-- **mgrep-sync**: `dry_run?`
+## Fase 4: Implementacao
 
-### Utility Tools
-- **mgrep-get-file**: `path`, `start_line?`, `end_line?`
-- **mgrep-list-files**: `path_prefix?`, `limit?`, `offset?`, `include_hash?`
-- **mgrep-get-context**: `path`, `line`, `context_lines?`
-- **mgrep-stats**: (no parameters)
+### 4.1 Sprint 1: Padroes Base (Prioridade Alta)
 
-### Testing MCP Tools
+| Tarefa | Arquivo | Esforco |
+|--------|---------|---------|
+| Criar `src/lib/ignore-patterns.ts` | Novo | 2h |
+| Expandir `DEFAULT_IGNORE_PATTERNS` | `file.ts` | 1h |
+| Adicionar `VENDOR_PATTERNS` | `ignore-patterns.ts` | 1h |
+| Adicionar `GENERATED_PATTERNS` | `ignore-patterns.ts` | 1h |
+| Adicionar `BINARY_PATTERNS` | `ignore-patterns.ts` | 1h |
+| Testes unitarios | `ignore-patterns.test.ts` | 2h |
+
+### 4.2 Sprint 2: Configuracao (Prioridade Media)
+
+| Tarefa | Arquivo | Esforco |
+|--------|---------|---------|
+| Atualizar schema Zod | `config.ts` | 1h |
+| Integrar categorias no FileSystem | `file.ts` | 2h |
+| Suporte a excecoes (`!pattern`) | `file.ts` | 2h |
+| Testes de configuracao | `config.test.ts` | 1h |
+
+### 4.3 Sprint 3: Deteccao Inteligente (Prioridade Baixa)
+
+| Tarefa | Arquivo | Esforco |
+|--------|---------|---------|
+| Criar `src/lib/file-analysis.ts` | Novo | 2h |
+| Implementar `isMinified()` | `file-analysis.ts` | 1h |
+| Implementar `hasGeneratedMarker()` | `file-analysis.ts` | 1h |
+| Integrar no sync pipeline | `utils.ts` | 2h |
+| Testes | `file-analysis.test.ts` | 2h |
+
+---
+
+## Fase 5: CLI e UX
+
+### 5.1 Novos Comandos/Flags
+
 ```bash
-npx @anthropic-ai/mcp-inspector
+# Listar padroes ativos
+mgrep config --show-ignore
+
+# Testar se arquivo seria ignorado
+mgrep check-ignore path/to/file.js
+
+# Dry run mostrando arquivos ignorados
+mgrep sync --dry-run --show-ignored
+
+# Override categoria
+mgrep sync --include-vendor  # indexar vendor/
+mgrep sync --include-generated  # indexar arquivos gerados
 ```
+
+### 5.2 Output Melhorado no Sync
+
+```
+Syncing /project...
+  Files: 234 indexed, 1,847 ignored
+  
+Ignored breakdown:
+  - vendor:    1,203 files (node_modules/, vendor/)
+  - generated:   412 files (dist/, *.min.js)
+  - binary:      189 files (*.png, *.pdf)
+  - gitignore:    43 files (.env, secrets/)
 ```
 
 ---
 
-## Fase 4: Implementação
+## Fase 6: Documentacao
 
-### Sprint 1: Ferramentas de Arquivo
-- [ ] Implementar `mgrep-get-file` com proteções de segurança
-- [ ] Implementar `mgrep-list-files`
-- [ ] Testes unitários para ambas
-- [ ] Testes de segurança (path traversal, symlinks)
+### 6.1 Atualizar README.md
 
-### Sprint 2: Ferramentas de Contexto
-- [ ] Implementar `mgrep-get-context`
-- [ ] Implementar `mgrep-stats`
-- [ ] Testes para ferramentas existentes
-- [ ] Refatorar tratamento de erros (helpers)
+```markdown
+## File Filtering
 
-### Sprint 3: Documentação e Qualidade
-- [ ] Atualizar README.md
-- [ ] Atualizar CLAUDE.md
-- [ ] Atualizar AGENTS.md
-- [ ] Verificar cobertura (meta: 80%)
-- [ ] Testar com MCP Inspector e Claude Desktop
+mgrep automatically ignores files that are not useful for semantic search:
+
+### Default Categories
+
+| Category | Examples | Configurable |
+|----------|----------|--------------|
+| `vendor` | `node_modules/`, `vendor/`, `Pods/` | Yes |
+| `generated` | `dist/`, `*.min.js`, lock files | Yes |
+| `binary` | `*.png`, `*.pdf`, `*.exe` | Yes |
+| `config` | `.github/`, `Dockerfile` | Yes (off by default) |
+
+### Custom Configuration
+
+```yaml
+# .mgreprc.yaml
+ignore:
+  categories:
+    vendor: true
+    generated: true
+    config: true  # enable config indexing
+  additional:
+    - "internal/"
+  exceptions:
+    - "!vendor/important-lib/"
+```
+
+### Precedence
+
+1. `.gitignore` (in git repos)
+2. `.mgrepignore`
+3. Default patterns (configurable)
+4. CLI flags
+```
+
+### 6.2 Criar `.mgrepignore.example`
+
+```gitignore
+# Example .mgrepignore file
+# Uses gitignore syntax
+
+# Project-specific exclusions
+internal-tools/
+legacy-code/
+*.proprietary
+
+# Override default behavior
+!dist/bundle.js  # Keep this generated file
+!*.d.ts          # Keep TypeScript definitions
+```
 
 ---
 
-## Critérios de Aceite
+## Metricas de Sucesso
 
-### Funcionais
-1. Todas as 8 ferramentas operacionais
-2. Claude Desktop consegue usar todas as ferramentas
-3. Erros retornados em formato JSON-RPC válido
-
-### Segurança
-1. Path traversal bloqueado em todas as ferramentas de arquivo
-2. Symlinks maliciosos detectados e bloqueados
-3. Arquivos grandes truncados com aviso
-
-### Qualidade
-1. Cobertura de testes >= 80%
-2. Tempo de resposta < 5s para operações normais
-3. Documentação atualizada
+| Metrica | Atual | Meta |
+|---------|-------|------|
+| Padroes vendor detectados | ~0 (fora de git) | 50+ |
+| Padroes generated | 0 | 40+ |
+| Padroes binary | 7 | 80+ |
+| Configurabilidade | Nenhuma | Completa |
+| Tempo de sync (repo medio) | Baseline | -30% (menos arquivos) |
 
 ---
 
-## Riscos e Mitigações
+## Riscos e Mitigacoes
 
-| Risco | Impacto | Mitigação |
+| Risco | Impacto | Mitigacao |
 |-------|---------|-----------|
-| Path traversal attacks | Alto | Validação com `realpath` para symlinks |
-| Arquivos muito grandes | Médio | Truncamento automático com `MAX_LINES=2000` |
-| Timeout em buscas complexas | Médio | Limites de `max_results` nos schemas |
-| Incompatibilidade MCP SDK | Alto | Fixar versão do SDK em `package.json` |
+| Over-filtering (ignorar demais) | Alto | Sistema de excecoes, dry-run, categorias opcionais |
+| Breaking changes | Medio | Feature flag para novos padroes, migracao gradual |
+| Performance regex | Baixo | Pre-compilar patterns, usar `ignore` library |
+| Complexidade config | Medio | Defaults sensatos, documentacao clara |
 
 ---
 
-## Arquivos Afetados
+## Referencias
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/commands/watch_mcp.ts` | Adicionar 4 ferramentas + helpers de segurança |
-| `src/commands/watch_mcp.test.ts` | Expandir testes significativamente |
-| `README.md` | Atualizar seção MCP |
-| `CLAUDE.md` | Adicionar seção MCP Tools |
-| `AGENTS.md` | Adicionar seção MCP Integration |
+- [GitHub Linguist vendor.yml](https://github.com/github-linguist/linguist/blob/main/lib/linguist/vendor.yml)
+- [GitHub Linguist generated.rb](https://github.com/github-linguist/linguist/blob/main/lib/linguist/generated.rb)
+- [ripgrep GUIDE.md](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md)
+- [Silver Searcher ignore](https://github.com/ggreer/the_silver_searcher)
+- [Semgrep ignore docs](https://semgrep.dev/docs/ignoring-files-folders-code)
+- [Sourcegraph search config](https://sourcegraph.com/docs/admin/search)
 
 ---
 
-*Última atualização: 2025-12-21 | Versão 1.1*
+## Apendice: Lista Completa de Padroes Sugeridos
+
+### A.1 VENDOR_PATTERNS (53 padroes)
+
+```
+node_modules/
+.yarn/releases/
+.yarn/plugins/
+.yarn/sdks/
+.yarn/unplugged/
+.pnp.*
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.egg-info/
+.eggs/
+site-packages/
+vendor/bundle/
+vendor/
+Godeps/
+target/
+packages/
+bin/
+obj/
+Pods/
+Carthage/Build/
+gradle/wrapper/
+.gradle/
+bower_components/
+jspm_packages/
+web_modules/
+deps/
+third_party/
+third-party/
+3rdparty/
+externals/
+external/
+.bundle/
+_vendor/
+elm-stuff/
+.stack-work/
+.cabal-sandbox/
+.cache/
+cache/
+.parcel-cache/
+.turbo/
+.vercel/
+.netlify/
+.serverless/
+.angular/
+.rpt2_cache/
+.fusebox/
+```
+
+### A.2 GENERATED_PATTERNS (67 padroes)
+
+```
+*.min.js
+*.min.css
+*.min.mjs
+*-min.js
+*-min.css
+*.map
+*.js.map
+*.css.map
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
+bun.lock
+composer.lock
+Gemfile.lock
+Cargo.lock
+poetry.lock
+pdm.lock
+uv.lock
+pixi.lock
+Pipfile.lock
+go.sum
+Gopkg.lock
+glide.lock
+flake.lock
+deno.lock
+Package.resolved
+.terraform.lock.hcl
+MODULE.bazel.lock
+*.generated.*
+*.g.dart
+*.freezed.dart
+*.gr.dart
+*.pb.go
+*.pb.cc
+*.pb.h
+*.pb.js
+*.pb.ts
+*_pb2.py
+*.designer.cs
+*.designer.vb
+__generated__/
+*.d.ts
+.idea/
+*.xcworkspacedata
+*.xcuserstate
+__snapshots__/
+*.snap
+coverage/
+htmlcov/
+.nyc_output/
+docs/_build/
+site/
+_site/
+javadoc/
+apidoc/
+*.chunk.js
+*.bundle.js
+```
+
+### A.3 BINARY_PATTERNS (89 padroes)
+
+```
+*.lock
+*.bin
+*.ipynb
+*.pyc
+*.safetensors
+*.sqlite
+*.pt
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.tgz
+*.tbz2
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.icns
+*.webp
+*.avif
+*.heic
+*.heif
+*.tiff
+*.tif
+*.psd
+*.ai
+*.eps
+*.mp3
+*.mp4
+*.wav
+*.ogg
+*.flac
+*.aac
+*.m4a
+*.wma
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.eot
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+*.ods
+*.odp
+*.db
+*.sqlite3
+*.mdb
+*.accdb
+*.onnx
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.npy
+*.npz
+*.ckpt
+*.pth
+*.model
+*.weights
+```
+
+---
+
+*Ultima atualizacao: 2025-12-31 | Versao 2.0*

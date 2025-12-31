@@ -3,7 +3,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { program } from "commander";
+import { checkIgnoreCommand } from "./commands/check-ignore.js";
+import { configCommand } from "./commands/config.js";
 import { search } from "./commands/search.js";
+import { syncCommand } from "./commands/sync.js";
 import { watch } from "./commands/watch.js";
 import { watchMcp } from "./commands/watch_mcp.js";
 import {
@@ -35,7 +38,10 @@ program
   );
 
 program.addCommand(search, { isDefault: true });
+program.addCommand(syncCommand);
 program.addCommand(watch);
+program.addCommand(configCommand);
+program.addCommand(checkIgnoreCommand);
 program.addCommand(installClaudeCode);
 program.addCommand(uninstallClaudeCode);
 program.addCommand(installCodex);

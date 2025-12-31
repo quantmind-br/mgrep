@@ -3,3 +3,6 @@ node_modules/
 *.tsbuildinfo
 .mgreprc.yaml
 coverage/
+
+# Auto Claude data directory
+.auto-claude/

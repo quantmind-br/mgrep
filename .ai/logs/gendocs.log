@@ -1,0 +1,264 @@
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.737-0300","msg":"Starting gendocs analyze","repo_path":".","max_workers":0}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.737-0300","msg":"Starting analyze handler","repo_path":"."}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.737-0300","msg":"Starting analysis","repo_path":".","max_workers":0}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.742-0300","msg":"Incremental analysis","new_files":121,"modified_files":0,"deleted_files":0,"agents_to_run":5,"agents_to_skip":0}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.742-0300","msg":"Running 5 analysis tasks concurrently"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.742-0300","msg":"Creating api_analyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.742-0300","msg":"Creating dependency_analyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.743-0300","msg":"Running sub-agent APIAnalyzer (attempt 1/2)"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.743-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":1,"estimated_tokens":366}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.743-0300","msg":"Running sub-agent DependencyAnalyzer (attempt 1/2)"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:17.743-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":1,"estimated_tokens":173}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.495-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":535,"output_tokens":16,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.495-0300","msg":"Executing tool","tool":"list_files","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.498-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":3,"estimated_tokens":914}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.544-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":695,"output_tokens":16,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.544-0300","msg":"Executing tool","tool":"list_files","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:19.547-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":3,"estimated_tokens":1107}
+{"level":"INFO","timestamp":"2025-12-27T23:15:20.398-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":1717,"output_tokens":20,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:20.398-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:20.398-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":5,"estimated_tokens":1525}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.449-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":2670,"output_tokens":22,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.449-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.449-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":7,"estimated_tokens":1938}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.581-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":1891,"output_tokens":20,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.582-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:21.582-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":5,"estimated_tokens":1718}
+{"level":"INFO","timestamp":"2025-12-27T23:15:22.783-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":3216,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:22.783-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:22.783-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":9,"estimated_tokens":3492}
+{"level":"INFO","timestamp":"2025-12-27T23:15:23.399-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":2942,"output_tokens":22,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:23.399-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:23.399-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":7,"estimated_tokens":2131}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.406-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":5263,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.406-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.406-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":11,"estimated_tokens":4021}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.720-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":3552,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.720-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:24.720-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":9,"estimated_tokens":3776}
+{"level":"INFO","timestamp":"2025-12-27T23:15:25.946-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":6035,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:25.946-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:25.946-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":13,"estimated_tokens":5555}
+{"level":"INFO","timestamp":"2025-12-27T23:15:26.237-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":5612,"output_tokens":35,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:26.237-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:26.237-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":11,"estimated_tokens":5340}
+{"level":"INFO","timestamp":"2025-12-27T23:15:27.347-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":8005,"output_tokens":20,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:27.347-0300","msg":"Executing tool","tool":"list_files","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:27.347-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":15,"estimated_tokens":5631}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.615-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":7220,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.615-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.615-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":13,"estimated_tokens":6894}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.816-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":8228,"output_tokens":26,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.816-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:28.816-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":17,"estimated_tokens":5772}
+{"level":"INFO","timestamp":"2025-12-27T23:15:29.983-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":9422,"output_tokens":32,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:29.983-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:29.983-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":15,"estimated_tokens":8080}
+{"level":"INFO","timestamp":"2025-12-27T23:15:30.492-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":8458,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:30.492-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:30.493-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":19,"estimated_tokens":6155}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.997-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":10784,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.997-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.997-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":17,"estimated_tokens":9766}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.999-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":8905,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.999-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:31.999-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":21,"estimated_tokens":7723}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.013-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":12749,"output_tokens":29,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.013-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.013-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":19,"estimated_tokens":11567}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.822-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":10916,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.822-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:34.822-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":23,"estimated_tokens":8856}
+{"level":"INFO","timestamp":"2025-12-27T23:15:35.830-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":14665,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:35.830-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:35.830-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":21,"estimated_tokens":13135}
+{"level":"INFO","timestamp":"2025-12-27T23:15:36.306-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":12488,"output_tokens":29,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:36.306-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:36.306-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":25,"estimated_tokens":9197}
+{"level":"INFO","timestamp":"2025-12-27T23:15:38.892-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":16738,"output_tokens":21,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:38.892-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:38.892-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":23,"estimated_tokens":14103}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.038-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":12966,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.038-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.038-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":27,"estimated_tokens":10842}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.394-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":18106,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.394-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:41.394-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":25,"estimated_tokens":14808}
+{"level":"INFO","timestamp":"2025-12-27T23:15:42.604-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":15462,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:42.604-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:42.604-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":29,"estimated_tokens":11024}
+{"level":"INFO","timestamp":"2025-12-27T23:15:43.319-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":19164,"output_tokens":31,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:43.319-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:43.319-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":27,"estimated_tokens":15354}
+{"level":"INFO","timestamp":"2025-12-27T23:15:44.139-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":15757,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:44.139-0300","msg":"Executing tool","tool":"read_file","agent":"DependencyAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:44.139-0300","msg":"Calling LLM","agent":"DependencyAnalyzer","tool_count":2,"history_messages":31,"estimated_tokens":12634}
+{"level":"INFO","timestamp":"2025-12-27T23:15:45.395-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":19802,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:45.395-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:45.395-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":29,"estimated_tokens":16487}
+{"level":"INFO","timestamp":"2025-12-27T23:15:48.595-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":21284,"output_tokens":30,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:48.595-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:48.595-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":31,"estimated_tokens":16568}
+{"level":"INFO","timestamp":"2025-12-27T23:15:50.080-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":21732,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:50.080-0300","msg":"Executing tool","tool":"read_file","agent":"APIAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:50.080-0300","msg":"Calling LLM","agent":"APIAnalyzer","tool_count":2,"history_messages":33,"estimated_tokens":16737}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"LLM response received","agent":"DependencyAnalyzer","input_tokens":17654,"output_tokens":1248,"tool_calls":0}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"Sub-agent DependencyAnalyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"Output saved to .ai/docs/dependency_analysis.md"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"dependency_analyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"Creating structure_analyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"Running sub-agent StructureAnalyzer (attempt 1/2)"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:53.724-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":1,"estimated_tokens":334}
+{"level":"INFO","timestamp":"2025-12-27T23:15:54.984-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":693,"output_tokens":16,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:54.984-0300","msg":"Executing tool","tool":"list_files","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:54.987-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":3,"estimated_tokens":1083}
+{"level":"INFO","timestamp":"2025-12-27T23:15:57.846-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":1930,"output_tokens":22,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:57.846-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:57.846-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":5,"estimated_tokens":1496}
+{"level":"INFO","timestamp":"2025-12-27T23:15:59.067-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":2822,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:15:59.067-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:15:59.067-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":7,"estimated_tokens":2629}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"LLM response received","agent":"APIAnalyzer","input_tokens":21981,"output_tokens":1323,"tool_calls":0}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"Sub-agent APIAnalyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"Output saved to .ai/docs/api_analysis.md"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"api_analyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"Creating data_flow_analyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"Running sub-agent DataFlowAnalyzer (attempt 1/2)"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.270-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":1,"estimated_tokens":166}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.448-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":4257,"output_tokens":26,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.448-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:00.448-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":9,"estimated_tokens":3205}
+{"level":"INFO","timestamp":"2025-12-27T23:16:01.281-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":521,"output_tokens":16,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:01.281-0300","msg":"Executing tool","tool":"list_files","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:01.283-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":3,"estimated_tokens":922}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.035-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":5027,"output_tokens":26,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.035-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.035-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":11,"estimated_tokens":3346}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.792-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":1719,"output_tokens":22,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.793-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:02.793-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":5,"estimated_tokens":1335}
+{"level":"INFO","timestamp":"2025-12-27T23:16:03.180-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":5293,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:03.180-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:03.180-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":13,"estimated_tokens":5032}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.077-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":2345,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.077-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.077-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":7,"estimated_tokens":2889}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.654-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":7163,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.654-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:04.654-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":15,"estimated_tokens":5561}
+{"level":"INFO","timestamp":"2025-12-27T23:16:05.510-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":4398,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:05.510-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:05.510-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":9,"estimated_tokens":4022}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.037-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":7849,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.037-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.038-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":17,"estimated_tokens":7095}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.637-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":5884,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.637-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:06.637-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":11,"estimated_tokens":5632}
+{"level":"INFO","timestamp":"2025-12-27T23:16:07.839-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":9770,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:07.839-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:07.839-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":19,"estimated_tokens":8740}
+{"level":"INFO","timestamp":"2025-12-27T23:16:08.090-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":7789,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:08.090-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:08.090-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":13,"estimated_tokens":7166}
+{"level":"INFO","timestamp":"2025-12-27T23:16:09.809-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":11792,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:09.809-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:09.809-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":21,"estimated_tokens":10350}
+{"level":"INFO","timestamp":"2025-12-27T23:16:10.787-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":9710,"output_tokens":26,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:10.787-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:10.787-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":15,"estimated_tokens":7742}
+{"level":"INFO","timestamp":"2025-12-27T23:16:11.486-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":13732,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:11.486-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:11.486-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":23,"estimated_tokens":11918}
+{"level":"INFO","timestamp":"2025-12-27T23:16:12.114-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":10573,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:12.114-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:12.114-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":17,"estimated_tokens":9310}
+{"level":"INFO","timestamp":"2025-12-27T23:16:13.740-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":12563,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:13.740-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:13.740-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":19,"estimated_tokens":10996}
+{"level":"INFO","timestamp":"2025-12-27T23:16:15.458-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":15763,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:15.458-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:15.458-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":25,"estimated_tokens":13468}
+{"level":"INFO","timestamp":"2025-12-27T23:16:16.562-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":14419,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:16.562-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:16.562-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":21,"estimated_tokens":12546}
+{"level":"INFO","timestamp":"2025-12-27T23:16:26.507-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":16438,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:26.507-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:26.507-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":23,"estimated_tokens":12929}
+{"level":"INFO","timestamp":"2025-12-27T23:16:29.386-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":16915,"output_tokens":29,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:29.386-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:29.386-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":25,"estimated_tokens":13270}
+{"level":"INFO","timestamp":"2025-12-27T23:16:30.925-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":17362,"output_tokens":23,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:30.925-0300","msg":"Executing tool","tool":"list_files","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:30.925-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":27,"estimated_tokens":13287}
+{"level":"INFO","timestamp":"2025-12-27T23:16:32.427-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":17451,"output_tokens":29,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:32.427-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:32.427-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":29,"estimated_tokens":15088}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.145-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":19299,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.145-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.146-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":31,"estimated_tokens":16733}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.716-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":17938,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.716-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:34.716-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":27,"estimated_tokens":14976}
+{"level":"INFO","timestamp":"2025-12-27T23:16:36.557-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":21297,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:36.557-0300","msg":"Executing tool","tool":"read_file","agent":"DataFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:36.557-0300","msg":"Calling LLM","agent":"DataFlowAnalyzer","tool_count":2,"history_messages":33,"estimated_tokens":17262}
+{"level":"INFO","timestamp":"2025-12-27T23:16:38.307-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":19690,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:38.307-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:38.307-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":29,"estimated_tokens":15158}
+{"level":"INFO","timestamp":"2025-12-27T23:16:40.019-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":20293,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:40.019-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:40.020-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":31,"estimated_tokens":16712}
+{"level":"INFO","timestamp":"2025-12-27T23:16:41.711-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":22277,"output_tokens":20,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:41.711-0300","msg":"Executing tool","tool":"read_file","agent":"StructureAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:41.711-0300","msg":"Calling LLM","agent":"StructureAnalyzer","tool_count":2,"history_messages":33,"estimated_tokens":17323}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"LLM response received","agent":"DataFlowAnalyzer","input_tokens":22094,"output_tokens":1070,"tool_calls":0}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"Sub-agent DataFlowAnalyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"Output saved to .ai/docs/data_flow_analysis.md"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"data_flow_analyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"Creating request_flow_analyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"Running sub-agent RequestFlowAnalyzer (attempt 1/2)"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:46.584-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":1,"estimated_tokens":157}
+{"level":"INFO","timestamp":"2025-12-27T23:16:47.251-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":498,"output_tokens":16,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:47.251-0300","msg":"Executing tool","tool":"list_files","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:47.253-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":3,"estimated_tokens":921}
+{"level":"INFO","timestamp":"2025-12-27T23:16:48.061-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":1679,"output_tokens":22,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:48.061-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:48.062-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":5,"estimated_tokens":1334}
+{"level":"INFO","timestamp":"2025-12-27T23:16:49.079-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":2196,"output_tokens":27,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:49.079-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:49.079-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":7,"estimated_tokens":2979}
+{"level":"INFO","timestamp":"2025-12-27T23:16:50.085-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":4144,"output_tokens":35,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:50.085-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:50.085-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":9,"estimated_tokens":4543}
+{"level":"INFO","timestamp":"2025-12-27T23:16:51.128-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":5713,"output_tokens":35,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:51.128-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:51.129-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":11,"estimated_tokens":6177}
+{"level":"INFO","timestamp":"2025-12-27T23:16:52.227-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":7238,"output_tokens":35,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:52.227-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:52.227-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":13,"estimated_tokens":8107}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.497-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":8902,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.497-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.497-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":15,"estimated_tokens":9240}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.915-0300","msg":"LLM response received","agent":"StructureAnalyzer","input_tokens":23258,"output_tokens":1241,"tool_calls":0}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.915-0300","msg":"Sub-agent StructureAnalyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.915-0300","msg":"Output saved to .ai/docs/structure_analysis.md"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:53.915-0300","msg":"structure_analyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:54.774-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":10266,"output_tokens":28,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:54.774-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:54.774-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":17,"estimated_tokens":10774}
+{"level":"INFO","timestamp":"2025-12-27T23:16:56.116-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":12108,"output_tokens":24,"tool_calls":1}
+{"level":"INFO","timestamp":"2025-12-27T23:16:56.116-0300","msg":"Executing tool","tool":"read_file","agent":"RequestFlowAnalyzer"}
+{"level":"INFO","timestamp":"2025-12-27T23:16:56.116-0300","msg":"Calling LLM","agent":"RequestFlowAnalyzer","tool_count":2,"history_messages":19,"estimated_tokens":12328}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"LLM response received","agent":"RequestFlowAnalyzer","input_tokens":14068,"output_tokens":1039,"tool_calls":0}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"Sub-agent RequestFlowAnalyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"Output saved to .ai/docs/request_flow_analysis.md"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"request_flow_analyzer completed successfully"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"structure_ succeeded"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"dependency_ succeeded"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"data_flow_ succeeded"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"request_flow_ succeeded"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"api_ succeeded"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.702-0300","msg":"Analysis complete: 5/5 successful"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.703-0300","msg":"Analysis cache updated"}
+{"level":"INFO","timestamp":"2025-12-27T23:17:03.703-0300","msg":"Analysis complete: 5/5 successful"}

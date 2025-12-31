@@ -1,11 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import ignore from "ignore";
+import type { IgnoreConfig } from "./config.js";
 import type { Git } from "./git.js";
+import { getDefaultIgnorePatterns } from "./ignore-patterns.js";
 
 /**
  * Default glob patterns to ignore during file indexing.
- * These are not recognized as binary and also can't be uploaded to Mixedbread.
+ * @deprecated Use ignore-patterns.ts instead
  */
 export const DEFAULT_IGNORE_PATTERNS: readonly string[] = [
   "*.lock",
@@ -23,8 +25,14 @@ export const DEFAULT_IGNORE_PATTERNS: readonly string[] = [
 export interface FileSystemOptions {
   /**
    * Additional glob patterns to ignore (in addition to .gitignore and hidden files)
+   * @deprecated Use ignoreConfig instead
    */
   ignorePatterns: string[];
+
+  /**
+   * Ignore configuration object
+   */
+  ignoreConfig?: IgnoreConfig;
 }
 
 /**
@@ -59,7 +67,37 @@ export class NodeFileSystem implements FileSystem {
     options: FileSystemOptions,
   ) {
     this.customIgnoreFilter = ignore();
-    this.customIgnoreFilter.add(options.ignorePatterns);
+
+    if (options.ignoreConfig) {
+      // Use new config-based patterns
+      const { categories, additional, exceptions } = options.ignoreConfig;
+
+      const defaultPatterns = getDefaultIgnorePatterns({
+        vendor: categories.vendor,
+        generated: categories.generated,
+        binary: categories.binary,
+        config: categories.config,
+      });
+
+      this.customIgnoreFilter.add(defaultPatterns);
+
+      if (additional && additional.length > 0) {
+        this.customIgnoreFilter.add(additional);
+      }
+
+      // Add exceptions last to ensure they override
+      if (exceptions && exceptions.length > 0) {
+        this.customIgnoreFilter.add(exceptions);
+      }
+    } else {
+      // Fallback for backward compatibility (e.g. tests without config)
+      this.customIgnoreFilter.add(DEFAULT_IGNORE_PATTERNS);
+    }
+
+    // Add legacy ignorePatterns (CLI overrides) on top
+    if (options.ignorePatterns && options.ignorePatterns.length > 0) {
+      this.customIgnoreFilter.add(options.ignorePatterns);
+    }
   }
 
   /**

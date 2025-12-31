@@ -104,6 +104,21 @@ export interface StoreInfo {
 }
 
 /**
+ * Statistics about a store - optimized for fast retrieval
+ */
+export interface StoreStats {
+  store_name: string;
+  description: string;
+  chunk_count: number;
+  /**
+   * Estimated file count (may be approximate for performance)
+   */
+  file_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/**
  * Interface for store operations
  */
 export interface ListFilesOptions {
@@ -173,6 +188,8 @@ export interface Store {
    * Get store information
    */
   getInfo(storeId: string): Promise<StoreInfo>;
+
+  getStats(storeId: string): Promise<StoreStats>;
 
   /**
    * Refresh the client with a new JWT token (optional, for long-running sessions)
@@ -414,5 +431,18 @@ export class TestStore implements Store {
   async getInfo(_storeId: string): Promise<StoreInfo> {
     const db = await this.load();
     return db.info;
+  }
+
+  async getStats(_storeId: string): Promise<StoreStats> {
+    const db = await this.load();
+    const fileCount = Object.keys(db.files).length;
+    return {
+      store_name: db.info.name,
+      description: db.info.description,
+      chunk_count: fileCount,
+      file_count: fileCount,
+      created_at: db.info.created_at,
+      updated_at: db.info.updated_at,
+    };
   }
 }

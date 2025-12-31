@@ -1,0 +1,634 @@
+{
+  "version": 1,
+  "last_analysis": "2025-12-27T23:17:03.70273231-03:00",
+  "git_commit": "d50a9a7",
+  "files": {
+    ".beads/.gitignore": {
+      "hash": "8af9d152e26f40625a50a56f065f6455a708d4b3141f611cd91be06442961e8d",
+      "modified": "2025-12-21T15:44:29.914948742-03:00",
+      "size": 532
+    },
+    ".beads/.local_version": {
+      "hash": "3e5312160f5de674ded835127835401989af3fc7e5e9fd16c58e946201c94434",
+      "modified": "2025-12-21T15:07:41.731788132-03:00",
+      "size": 7
+    },
+    ".beads/README.md": {
+      "hash": "749dcadc11a40ace7b4b95815368e21f7ed1b048e6d3038e3f95cf7905b5c2e1",
+      "modified": "2025-12-21T15:44:29.914986964-03:00",
+      "size": 2250
+    },
+    ".beads/beads.db": {
+      "hash": "6666c041dd0580433d11701454ec34f376e114fbe201e5a37f226662b4ebf0e2",
+      "modified": "2025-12-21T15:44:53.439327552-03:00",
+      "size": 241664
+    },
+    ".beads/config.yaml": {
+      "hash": "03b35f0b40674aca3d970e40777b447c7eb3882d16502bf3c030b712581c74f4",
+      "modified": "2025-12-21T15:44:29.915003055-03:00",
+      "size": 2286
+    },
+    ".beads/daemon.lock": {
+      "hash": "01229471287b560cf8485e2505533592e7fd7b76cb4eb22064789ac8f8c37b74",
+      "modified": "2025-12-21T15:07:41.801789632-03:00",
+      "size": 174
+    },
+    ".beads/daemon.log": {
+      "hash": "864d7fec9193d66bf0ba9d6c23c57361ba6164610664be245b60a4a400ccf2b1",
+      "modified": "2025-12-21T17:19:48.10872694-03:00",
+      "size": 3377
+    },
+    ".beads/interactions.jsonl": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:44:53.430327361-03:00",
+      "size": 0
+    },
+    ".beads/metadata.json": {
+      "hash": "6a241e445480b28e3a7f2edef1a3d5a6b3b37645ef5d93a3d338b51529c8ab42",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 69
+    },
+    ".claude-plugin/marketplace.json": {
+      "hash": "e2cb046f69381b3c8f131b4f0f7b83ad1f47a75776b6246e0dd882d92d9bdc9d",
+      "modified": "2025-12-19T11:34:33.142859567-03:00",
+      "size": 499
+    },
+    ".cursor/rules/ai-storage-mcp.mdc": {
+      "hash": "7bb8403f4f811fbf4302dbea92ac739212b20d82563daac6ce28476168b9a590",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 1784
+    },
+    ".cursor/rules/cli-commands.mdc": {
+      "hash": "5fe46a74a540788feef9332dd99eff9eb19157d7c0ce53df0f39dbab931be6cc",
+      "modified": "2025-12-19T11:33:14.505837091-03:00",
+      "size": 2455
+    },
+    ".cursor/rules/code-patterns.mdc": {
+      "hash": "9ac3e5454cd7401959fa087acedbf03c860ea9de06b5ca40e68944fa18fbbc72",
+      "modified": "2025-12-19T11:52:06.247460614-03:00",
+      "size": 1729
+    },
+    ".cursor/rules/development-patterns.mdc": {
+      "hash": "ad6e15053ddc359c19014c36c2bb55f5ec99d3c1b41a607cd1f6f9f60ebb0f0e",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 1758
+    },
+    ".cursor/rules/project-overview.mdc": {
+      "hash": "965d460babf2a7331c037ff33243be1945a008c335f5c7d6ba5775dc4f1ea4fc",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 1721
+    },
+    ".cursor/rules/storage-and-ai.mdc": {
+      "hash": "519cb01a618a8e622c750f1b2acb2cdb06b06c8399fab919a85d8bbbb57fec96",
+      "modified": "2025-12-19T11:52:06.247478979-03:00",
+      "size": 1846
+    },
+    ".gitattributes": {
+      "hash": "38414f633421b6240afcf7090ade908dd7ade5ed004b67c508402eab084f8cfc",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 70
+    },
+    ".github/workflows/ci.yml": {
+      "hash": "e05567d99575a15b9f8103a0b22e74add5b5ed287d5a0bf87a96c1eb6a37f56d",
+      "modified": "2025-12-16T20:25:45.416752691-03:00",
+      "size": 841
+    },
+    ".github/workflows/release.yml": {
+      "hash": "1f1d5e9dcf6253f8bc1cb3460b43c07bb57b0dd87dab753d6e335cf3eec570c1",
+      "modified": "2025-12-16T20:25:45.416772859-03:00",
+      "size": 1686
+    },
+    ".gitignore": {
+      "hash": "d5dfd43cc6843f882439b642b36f5f3c18d6044f32c8c2d4dcd81fc4d2a349fa",
+      "modified": "2025-12-21T14:29:58.299806929-03:00",
+      "size": 58
+    },
+    ".husky/pre-commit": {
+      "hash": "488cc936e78dcdf3b60907f1bba6072e4f0840827ed7a5ee675addde3adde3de",
+      "modified": "2025-12-16T20:25:45.416772859-03:00",
+      "size": 34
+    },
+    ".letta/settings.json": {
+      "hash": "89f46ad0b53c5bceb14d69362751736e787b11c0fd58fc0986bca7f0a81049cb",
+      "modified": "2025-12-19T11:33:14.505855867-03:00",
+      "size": 76
+    },
+    ".letta/settings.local.json": {
+      "hash": "e1ee206a7f876cb77396417d80bf877e6a06c38e6cd4cac5cb8d81974b422f0b",
+      "modified": "2025-12-19T11:33:14.505924457-03:00",
+      "size": 63
+    },
+    ".mgreprc.yaml": {
+      "hash": "12baa01f9731399dd0448e8c31af58b059cc18d58e5d8d54318dfc13e5d66e60",
+      "modified": "2025-12-27T22:34:38.117168691-03:00",
+      "size": 262
+    },
+    ".mgreprc.yaml.example": {
+      "hash": "4dcc4eb680f55e91232ca9f5e3527c5ac786f815e282e478316a784e03b1ed73",
+      "modified": "2025-12-19T11:33:14.505924457-03:00",
+      "size": 5873
+    },
+    ".ruff_cache/.gitignore": {
+      "hash": "9e3a60f1e6ec4ae60215c11d54b171392745ec25e9dded433d5bd921363af316",
+      "modified": "2025-12-16T22:06:46.21131496-03:00",
+      "size": 35
+    },
+    ".ruff_cache/0.12.5/7408784669247434529": {
+      "hash": "521ee4870afedba252f33ca45ede6fffaba3ed3d62f9cbfe226bf8ba41ecca89",
+      "modified": "2025-12-16T22:06:46.232315521-03:00",
+      "size": 78
+    },
+    ".ruff_cache/CACHEDIR.TAG": {
+      "hash": "5953156d7e0c564a427251316eaf26f8870e6483ae2197f916b630e4f93e31ae",
+      "modified": "2025-12-16T22:06:46.21131496-03:00",
+      "size": 43
+    },
+    ".serena/.gitignore": {
+      "hash": "fbfced411cdffce54bcbe4c0f21c0f84ac3090a1ff47ee2ff6954da7a39407c8",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 7
+    },
+    ".serena/cache/typescript/document_symbols.pkl": {
+      "hash": "1987f6f90e91a2941fdac1bdc878e66f3a2d36b810e5e0f9621d21c4c483f26d",
+      "modified": "2025-12-27T07:34:32.668103045-03:00",
+      "size": 3146797
+    },
+    ".serena/cache/typescript/raw_document_symbols.pkl": {
+      "hash": "dc4048d0bd350981dce43418cd12266fc2f6581e86b6ebcca5c7da20047f4de3",
+      "modified": "2025-12-27T07:34:32.660681064-03:00",
+      "size": 897560
+    },
+    ".serena/memories/code_style_conventions.md": {
+      "hash": "79d917c4616c9fc3b24953fe28ce78b18d100039c6c53c24ceb689798cea51f2",
+      "modified": "2025-12-21T15:44:29.915039163-03:00",
+      "size": 2016
+    },
+    ".serena/memories/project_overview.md": {
+      "hash": "954eb4abd781f4f4372759f3a6316a994d7f915b9751b689dc0de8e5133c4aa8",
+      "modified": "2025-12-21T15:44:29.91514817-03:00",
+      "size": 2240
+    },
+    ".serena/memories/suggested_commands.md": {
+      "hash": "b86c21eaf3d64f45bcb70eb22aaca5ec4e2c83bca03597d41fad2a0d7c7b1e6f",
+      "modified": "2025-12-21T15:44:29.91514817-03:00",
+      "size": 2460
+    },
+    ".serena/memories/task_completion_checklist.md": {
+      "hash": "a269c7a336215b619ef52c4a9cd649675327ca07dbbaeb238e31afff14be99f0",
+      "modified": "2025-12-21T15:44:29.91514817-03:00",
+      "size": 1147
+    },
+    ".serena/project.yml": {
+      "hash": "b990736798cb038f49e9a9608ad9e5e8ed71014e236eab2153647bd97757e62a",
+      "modified": "2025-12-21T15:44:29.91514817-03:00",
+      "size": 5603
+    },
+    ".vscode/settings.json": {
+      "hash": "ef87d4439a36aa3c03373d02c150ec6d41edb3c6ef2f142d31f4e5e46a7a2e47",
+      "modified": "2025-12-16T20:25:45.416772859-03:00",
+      "size": 621
+    },
+    "AGENTS.md": {
+      "hash": "f4a2d6bbf48edc254afef2f79fc439f1d4d0ba354e5ae4b1198f326bae75c912",
+      "modified": "2025-12-21T15:44:29.91514817-03:00",
+      "size": 3564
+    },
+    "CLAUDE.md": {
+      "hash": "e46201ac6cbe47138f224194cb0a6684551495207d57f07c9759d19d44f05fc5",
+      "modified": "2025-12-21T15:44:29.915240204-03:00",
+      "size": 4890
+    },
+    "LICENSE": {
+      "hash": "db530d5bb04dbc0aba78bec73d518ba5f6e9a8c6f8e3e2916e420e0e79b65b41",
+      "modified": "2025-12-16T20:25:45.416772859-03:00",
+      "size": 11347
+    },
+    "Makefile": {
+      "hash": "4abbc6e2086f4aaef8d632d810a8471f83b4f6d4ab7506e0accf8a792871c2b8",
+      "modified": "2025-12-19T11:33:14.505924457-03:00",
+      "size": 3434
+    },
+    "PLAN.md": {
+      "hash": "0c18a598121049a12a705cf3fb969fe31d8230a5cfe627a434936a6df90620c8",
+      "modified": "2025-12-21T15:44:29.91525917-03:00",
+      "size": 15388
+    },
+    "README.md": {
+      "hash": "f451a180869de59db92da28a652ae9f9a056244a124667663c3d0ed116f4238a",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 9956
+    },
+    "biome.json": {
+      "hash": "e4a9a99e8f960895a54a257d2cbc430a8c1f5e1588fa795686b7ab6472ff7d2f",
+      "modified": "2025-12-21T14:29:58.299806929-03:00",
+      "size": 682
+    },
+    "package-lock.json": {
+      "hash": "0f7c5a353e95dcc5ed250ed635489f956a40b14b654504de4f28cf67276e436a",
+      "modified": "2025-12-21T14:29:58.299806929-03:00",
+      "size": 142946
+    },
+    "package.json": {
+      "hash": "717d8e9be18693da140e2d4e96cfa80e5924246b17bed82eed8ffbfaa6d55272",
+      "modified": "2025-12-21T14:29:58.299806929-03:00",
+      "size": 1977
+    },
+    "plugins/mgrep/.claude-plugin/plugin.json": {
+      "hash": "bcb56be46b409cb3ee19dfba6858b083984f12ee8c4a89d91edeec374668deea",
+      "modified": "2025-12-19T11:34:33.142859567-03:00",
+      "size": 223
+    },
+    "plugins/mgrep/hooks/hook.json": {
+      "hash": "146d307a45ec9b9c80f52d013a70c6092abb10379eacf31bdf38f00432595177",
+      "modified": "2025-12-16T20:25:45.41695245-03:00",
+      "size": 524
+    },
+    "plugins/mgrep/hooks/mgrep_watch.py": {
+      "hash": "ca0c2232592de33ad5c322aeb525210e699a8a84492d81ed30772cc9a84163e3",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 6188
+    },
+    "plugins/mgrep/hooks/mgrep_watch_kill.py": {
+      "hash": "4fe2cdb2cc968cbe72466aabf9cc2bfb13be947450b3244fc6afafe235ffd3d5",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 4908
+    },
+    "plugins/mgrep/skills/mgrep/SKILL.md": {
+      "hash": "68f35a0efff0308091f99ae44c4cc6782ccef7c55f928c0dd4df6878dd4491ed",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 1997
+    },
+    "pnpm-lock.yaml": {
+      "hash": "7dbaefe6fa50f650398811399ce2dca3e6cad29162b3178e092a3aafb43f630f",
+      "modified": "2025-12-16T20:25:45.417014297-03:00",
+      "size": 62402
+    },
+    "public/logo_mb.svg": {
+      "hash": "526d05a4acc558e4fe061bf28d4ef14176552eb983aab3d0ab4b44bbd0c6ada4",
+      "modified": "2025-12-16T20:25:45.417637658-03:00",
+      "size": 81399
+    },
+    "shotgun-prompt-20251221-153209_response.md": {
+      "hash": "ee5639a8d99b33717486ac02c155f909a8e75c237b082c386ce7b373d6e0b4a5",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 2761
+    },
+    "src/commands/search.test.ts": {
+      "hash": "7fef8d7f014c0185142866e01778602f03b3d587e1413412fc98558a03b3e202",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 14805
+    },
+    "src/commands/search.ts": {
+      "hash": "03d3ed93e9a10342dd9842fde7b263f7c78189ac53c00aeb40ee9a0d0128134d",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 10660
+    },
+    "src/commands/watch.test.ts": {
+      "hash": "2fb88e8c3e96cc90b1629fda5bd900fe643b737db52859e52b4c071ea092518f",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 2047
+    },
+    "src/commands/watch.ts": {
+      "hash": "779a3ac7d710e69d1af898ea3808ffcca971757850e6582853d51839082ddfc1",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 6319
+    },
+    "src/commands/watch_mcp.test.ts": {
+      "hash": "0af678dfcd248caa0daf031d6abdb81f4b9fe77bbd34c13c25506496d6548b3a",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 4086
+    },
+    "src/commands/watch_mcp.ts": {
+      "hash": "e618445b4061cbcf66180501c07f0f64b6abecdd0f75d20c0cb81efd336bb0d7",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 32715
+    },
+    "src/index.ts": {
+      "hash": "78e59a63337a24e81d6af407d32b6e3dada89ee964822bd611820768006ab659",
+      "modified": "2025-12-19T11:34:33.143879129-03:00",
+      "size": 1449
+    },
+    "src/install/claude-code.test.ts": {
+      "hash": "36fd576a513de82280e4b789e177a130a953ff7252b7e9e771103b4feda3b9d4",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 5339
+    },
+    "src/install/claude-code.ts": {
+      "hash": "6870e825cb6c1f82dbb9b24908f4016d2abb8665ee6e47c6e46a0fd3836bd2c8",
+      "modified": "2025-12-19T11:34:33.143879129-03:00",
+      "size": 2636
+    },
+    "src/install/codex.test.ts": {
+      "hash": "e21220267db7820856d11ffdcecdfb34834ea84b347c2b110f0ad0218d67051a",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 6787
+    },
+    "src/install/codex.ts": {
+      "hash": "99764e630593fde2162f9c2894525c176d1b3ef8d8231e3a458219dadc57086d",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 2610
+    },
+    "src/install/droid.test.ts": {
+      "hash": "78545dd10a6832c6e7a58a18d0ee88be4745f777b867b01dc113079290861405",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 8781
+    },
+    "src/install/droid.ts": {
+      "hash": "2894cad93f6def3458c3271adf0f18b875c67b8a80a6b7f68dcd14ec7e3760d7",
+      "modified": "2025-12-19T11:34:33.143879129-03:00",
+      "size": 7389
+    },
+    "src/install/opencode.test.ts": {
+      "hash": "ea168dbfcd4b4821e0826c1520862218a3a81068e98a0c567f4e032dc0a7dc39",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 7241
+    },
+    "src/install/opencode.ts": {
+      "hash": "876293a432e0466b08d44c3a2451760b25829d0be252dfdd8a7c8c7d69dc64f6",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 6279
+    },
+    "src/install/skill.test.ts": {
+      "hash": "bc366c36f6aa68e1fef0da49006f2a4d65f50e1cb32141143591333e1b4db7c6",
+      "modified": "2025-12-21T15:44:29.915288976-03:00",
+      "size": 1723
+    },
+    "src/install/skill.ts": {
+      "hash": "6ff7ef0411142b66eb3f97aa80a1d8002f9f9b6245eca9bcf20ffc2b7fc35b50",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 2561
+    },
+    "src/lib/config.test.ts": {
+      "hash": "13960cd83371e4bbca2fca639bbf10aff0bb694573e5c716fedd857601d447f6",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 9602
+    },
+    "src/lib/config.ts": {
+      "hash": "dacb353d9ca90c84e50356c20e98330edc12f48498fe5b1be4632c5aa76dc0d5",
+      "modified": "2025-12-27T23:09:25.44069113-03:00",
+      "size": 16314
+    },
+    "src/lib/context.test.ts": {
+      "hash": "3da5b3c1c5490cc215d42b56f892c0d80ab0055f3cc8546886a2de214cea73e9",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 6132
+    },
+    "src/lib/context.ts": {
+      "hash": "00605a52afd6641a35de9174fa714659c39c292e8795a1328022736993fb44eb",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 1879
+    },
+    "src/lib/file.test.ts": {
+      "hash": "994d2a1b29a2c021ae938a2d99d47b8e61a59f57a38990bd7be366b1c98f043f",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 13006
+    },
+    "src/lib/file.ts": {
+      "hash": "7aca204abd27eab2ed05d0f693cbc5a12f7562fbaf98ddb6b034fddbb14b7976",
+      "modified": "2025-12-16T20:25:45.417912369-03:00",
+      "size": 5769
+    },
+    "src/lib/git.test.ts": {
+      "hash": "2af1696c652c2aa83fad69c6feeb0848571ab8ad957e3165683d5b9b2f2800da",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 9562
+    },
+    "src/lib/git.ts": {
+      "hash": "d3d83241fe123852d0beba2f848ae252c1d006f0bdfb8d0b75b13ac2f3a6d420",
+      "modified": "2025-12-16T20:25:45.417912369-03:00",
+      "size": 5924
+    },
+    "src/lib/logger.test.ts": {
+      "hash": "ed076612d9a93b17c9a2d6496e0c1c652669ded0d72a36d4e2b74fd23cbb9e58",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 8449
+    },
+    "src/lib/logger.ts": {
+      "hash": "7e891ab8f6b33eedca80491f86ac84e44c5cba65823b38c04aaa1ca450462dee",
+      "modified": "2025-12-16T20:25:45.417912369-03:00",
+      "size": 2335
+    },
+    "src/lib/providers/embeddings/embeddings.test.ts": {
+      "hash": "823bf4ac7bdef673f663d50b66772652264e6c2af1f5b52bea6749d2e0b066ca",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 19446
+    },
+    "src/lib/providers/embeddings/google.ts": {
+      "hash": "bf5f852f08ce228801e37672082248197067a5dfbb18dff3977756976ec81f0a",
+      "modified": "2025-12-19T11:33:14.506494948-03:00",
+      "size": 3607
+    },
+    "src/lib/providers/embeddings/index.ts": {
+      "hash": "0a9e91bbb2930c0808da4dc5e6621eeb6b4d7dd02ad3eeb5ace4872424aec2fe",
+      "modified": "2025-12-19T11:33:14.506514414-03:00",
+      "size": 1363
+    },
+    "src/lib/providers/embeddings/openai.ts": {
+      "hash": "eec8c124da6e69589b38930a341a81b5a48e2b8efeb71c0c94bf1e354923a93c",
+      "modified": "2025-12-19T11:33:14.506514414-03:00",
+      "size": 1803
+    },
+    "src/lib/providers/index.ts": {
+      "hash": "915ac8bb3c41831fd1640821030dc346d9c5f6260a10dce934b06e97527be869",
+      "modified": "2025-12-19T11:33:14.506514414-03:00",
+      "size": 445
+    },
+    "src/lib/providers/llm/anthropic.ts": {
+      "hash": "ee0455d19771aefa632d03ce86d6a2220b01d7bcce740754fb05617cc6ee0a2e",
+      "modified": "2025-12-19T11:33:14.506514414-03:00",
+      "size": 2348
+    },
+    "src/lib/providers/llm/google.ts": {
+      "hash": "1b2a1a6e37e12d41c436e837a017b8656364ac0a903ae98df639a9a579401aaa",
+      "modified": "2025-12-19T11:33:14.506567144-03:00",
+      "size": 2976
+    },
+    "src/lib/providers/llm/index.ts": {
+      "hash": "0925bcd4d568c972d095b5c79ccb2fa71af1e438fc43f1250575698134d6d449",
+      "modified": "2025-12-19T11:33:14.506567144-03:00",
+      "size": 1198
+    },
+    "src/lib/providers/llm/llm.test.ts": {
+      "hash": "bf7ae640d8325ac77c50f5c5b1d3594e4c19b8aafbeff2af0c3d44040c8907cb",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 21634
+    },
+    "src/lib/providers/llm/openai.ts": {
+      "hash": "68b3cf9ae3ffacfd703d6f7343b7fd73f8a603f74b44786c0fd72dc67477dee4",
+      "modified": "2025-12-19T11:33:14.506567144-03:00",
+      "size": 1770
+    },
+    "src/lib/providers/types.ts": {
+      "hash": "d340c6ce4c0c6972aef9897f60d48a335df4c5a8f20f8b5960007f7a3331143c",
+      "modified": "2025-12-19T11:33:14.506567144-03:00",
+      "size": 1989
+    },
+    "src/lib/providers/web/index.ts": {
+      "hash": "c87d0ae91957c9b7e0d4b00edd09efca6b021138cfb46011e115026ca697c905",
+      "modified": "2025-12-21T14:29:58.300270907-03:00",
+      "size": 608
+    },
+    "src/lib/providers/web/tavily.ts": {
+      "hash": "6c15b2a791acbb26777f52a46c5a5bcb080983faf4dd4b0c30eac5b3aa1d05bf",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 3630
+    },
+    "src/lib/providers/web/types.ts": {
+      "hash": "bdae119ac19ef94f8269af716020a93a5b94ce46764017cf897b0573c28a119b",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 1014
+    },
+    "src/lib/providers/web/web.test.ts": {
+      "hash": "09efb2f9f7b87a5de4dbf109df982278f37f1ad7e298f3f4b731913718219f54",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 8822
+    },
+    "src/lib/qdrant-store.test.ts": {
+      "hash": "7fb7dd6452089601214672216066d3df8571c5305cee744a4ae18d35d39c4c81",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 18867
+    },
+    "src/lib/qdrant-store.ts": {
+      "hash": "16680f7f447c93786dd89350bf309c3159e79ca523ee8faeb611e55fadfae60f",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 14322
+    },
+    "src/lib/store.test.ts": {
+      "hash": "fd4a62a65ec3ddb48630cbebe9cf8c810a0e2837cb73a81668f1350427469e62",
+      "modified": "2025-12-21T14:29:58.301131368-03:00",
+      "size": 11143
+    },
+    "src/lib/store.ts": {
+      "hash": "e226c4615152e1450e57cb9717a7ccae40cce138d717721b4a7a03c86a6f0616",
+      "modified": "2025-12-21T14:29:58.301270928-03:00",
+      "size": 9527
+    },
+    "src/lib/sync-helpers.test.ts": {
+      "hash": "a01bbd25ce37cecd5431bd81df95d972e24096f502fa22a5c94c7900ca5c27b1",
+      "modified": "2025-12-21T14:29:58.301270928-03:00",
+      "size": 6599
+    },
+    "src/lib/sync-helpers.ts": {
+      "hash": "b578780ba3eaaad1a26dc62862dcc4c8756557790636b8b8c01bb670b0f35062",
+      "modified": "2025-12-16T20:25:45.417912369-03:00",
+      "size": 2677
+    },
+    "src/lib/utils.test.ts": {
+      "hash": "38964442aca23cde47d7315117818155dfc57c5bdf70e29317f8f7cdda248afa",
+      "modified": "2025-12-21T14:29:58.301270928-03:00",
+      "size": 23219
+    },
+    "src/lib/utils.ts": {
+      "hash": "a090454fc714968cf563d571ce0e3f5293b5c4682cbbd7a0eb60fe5e70833ef9",
+      "modified": "2025-12-21T14:29:58.301270928-03:00",
+      "size": 9764
+    },
+    "tavily-mcp/.gitignore": {
+      "hash": "47d8430cd3440c738b5c1e0a7702cc5875e437d41608afaae753b7029adb49fb",
+      "modified": "2025-12-21T14:29:58.301270928-03:00",
+      "size": 27
+    },
+    "tavily-mcp/Dockerfile": {
+      "hash": "09b2e15c87b52fd622761a2b265233c8e1244c5d0ccfafd0b15d26abadd86b06",
+      "modified": "2025-12-21T14:29:58.301578716-03:00",
+      "size": 467
+    },
+    "tavily-mcp/LICENCE": {
+      "hash": "fb93ba4424b3572bf1c60d2546a3aa39baddd2bc02e950315f55a734c57544da",
+      "modified": "2025-12-21T14:29:58.301578716-03:00",
+      "size": 1082
+    },
+    "tavily-mcp/README.md": {
+      "hash": "5e0849e517e187c567d2410f1bfdc59e7e5a430826bb6d5a1896df1a1657143c",
+      "modified": "2025-12-21T14:29:58.301602431-03:00",
+      "size": 13227
+    },
+    "tavily-mcp/package-lock.json": {
+      "hash": "80262592f49966807f50952d9a692bae3c21e6bfc78ff819f3fd10d30575457d",
+      "modified": "2025-12-21T14:29:58.309430392-03:00",
+      "size": 54868
+    },
+    "tavily-mcp/package.json": {
+      "hash": "5689bd44b4d3580b4812f73fbcc0da7b38be09a762af02d6263d1a8f9762ab07",
+      "modified": "2025-12-21T14:29:58.309430392-03:00",
+      "size": 1199
+    },
+    "tavily-mcp/smithery.yaml": {
+      "hash": "dca160717a8874c2781fce462a882d1f97f02423ce665c258040e33b0cd9e1ca",
+      "modified": "2025-12-21T14:29:58.309430392-03:00",
+      "size": 563
+    },
+    "tavily-mcp/src/index.js": {
+      "hash": "1b8e6f168aa6bb5b2ecef9c24bd03736fae90997f87d99c6d6544edbd48be3b9",
+      "modified": "2025-12-21T14:29:58.309430392-03:00",
+      "size": 35380
+    },
+    "tavily-mcp/src/index.js.map": {
+      "hash": "57a623cef4c3e8eb50d829726b6c1abe61fe6e5d4a7675c3e4d7e0ae6f977310",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 19164
+    },
+    "tavily-mcp/src/index.ts": {
+      "hash": "36b8907b47e0872024f24409687f6bf3b6d3974199f79f5c1c506886dbed2fd5",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 30328
+    },
+    "tavily-mcp/tsconfig.json": {
+      "hash": "c509b5a55e8a5545fc9d4abcb67c6a4781164a095742e3cf422135774e1f6604",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 340
+    },
+    "test/assets/model.safetensors": {
+      "hash": "9495d6063080fef7e61183d5f122067d921882b2c7919fff0a70cbbeef35c0d9",
+      "modified": "2025-12-16T20:25:45.418058897-03:00",
+      "size": 4152
+    },
+    "test/integration.bats": {
+      "hash": "725ddb1735a32b97a7fcbea5f297491496f4d0d2a179486395bc932920a04fee",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 15556
+    },
+    "test/test.bats": {
+      "hash": "27d3d058e1fdd7890b16fa7cd0fa38c4a1e2f332156a35550a4bd7e24fe8ed0b",
+      "modified": "2025-12-19T11:34:33.143879129-03:00",
+      "size": 11954
+    },
+    "tsconfig.json": {
+      "hash": "5b60f44fc50fa4526770df6e8d845d276697e586780e1809c81501161c7a536b",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 568
+    },
+    "tsconfig.tsbuildinfo": {
+      "hash": "21ecc5faeb7acaf6eca56e87110f45c9bc669e9a1a1782aad07bbb7cda688070",
+      "modified": "2025-12-27T23:09:30.224795881-03:00",
+      "size": 82015
+    },
+    "vitest.config.ts": {
+      "hash": "ae939d0fc8422dd35c2c869224951c3a4f2916538e348b5fb29cc9b8ee0dd424",
+      "modified": "2025-12-21T14:29:58.309645139-03:00",
+      "size": 464
+    }
+  },
+  "agents": {
+    "api_analyzer": {
+      "last_run": "2025-12-27T23:17:03.70332352-03:00",
+      "success": true
+    },
+    "data_flow_analyzer": {
+      "last_run": "2025-12-27T23:17:03.703324863-03:00",
+      "success": true
+    },
+    "dependency_analyzer": {
+      "last_run": "2025-12-27T23:17:03.703324813-03:00",
+      "success": true
+    },
+    "request_flow_analyzer": {
+      "last_run": "2025-12-27T23:17:03.703324903-03:00",
+      "success": true
+    },
+    "structure_analyzer": {
+      "last_run": "2025-12-27T23:17:03.703324733-03:00",
+      "success": true
+    }
+  }
+}

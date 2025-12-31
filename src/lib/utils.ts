@@ -4,6 +4,11 @@ import * as path from "node:path";
 import { isText } from "istextorbinary";
 import pLimit from "p-limit";
 import { exceedsMaxFileSize, loadConfig, type MgrepConfig } from "./config.js";
+import {
+  hasGeneratedMarker,
+  hasSourceMapReference,
+  isMinified,
+} from "./file-analysis.js";
 import type { FileSystem } from "./file.js";
 import type { FileMetadata, Store } from "./store.js";
 import type { InitialSyncProgress, InitialSyncResult } from "./sync-helpers.js";
@@ -130,6 +135,20 @@ export async function uploadFile(
     uploadOptions?.buffer ?? (await fs.promises.readFile(filePath));
   if (buffer.length === 0) {
     return false;
+  }
+
+  // Content detection (if enabled and file is likely text)
+  if (config?.ignore?.detectGenerated) {
+    // Basic binary check (null byte in first 1000 chars)
+    const preview = buffer.subarray(0, 1000);
+    if (!preview.includes(0)) {
+      const content = buffer.toString("utf-8");
+      const ext = path.extname(filePath);
+
+      if (isMinified(content, ext)) return false;
+      if (hasGeneratedMarker(content)) return false;
+      if (hasSourceMapReference(content)) return false;
+    }
   }
 
   // Use provided stat or get from disk

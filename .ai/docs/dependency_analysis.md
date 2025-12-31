@@ -1,103 +1,84 @@
 # Dependency Analysis
 
-## Internal Dependencies Map
-The `mgrep` codebase follows a structured hierarchical architecture where a central factory module manages the instantiation of core services, promoting decoupling between the CLI commands and the underlying logic.
+## Internal Dependencies
 
-*   **CLI Entry Point (`src/index.ts`)**: The main executable that orchestrates command registration and initializes the global logger.
-*   **Commands Layer (`src/commands/`)**: Implements specific CLI actions like `search`, `watch`, and `watch_mcp`. These modules are consumers of the services provided by the `lib` directory.
-*   **Context Factory (`src/lib/context.ts`)**: Serves as a lightweight DI container. It reads the user configuration and instantiates concrete implementations for the `Store`, `EmbeddingsClient`, `LLMClient`, and `WebSearchClient`.
-*   **Library Core (`src/lib/`)**:
-    *   `store.ts`: Defines the core `Store` interface and shared data models (e.g., `ChunkType`, `SearchResponse`, `FileMetadata`).
-    *   `file.ts` & `git.ts`: Provide abstractions for file system operations and Git integration (used for `.gitignore` awareness).
-    *   `config.ts`: Handles configuration loading and validation using `zod` and `yaml`.
-*   **Provider Implementations (`src/lib/providers/`)**: Contains the specialized logic for interacting with external AI services, partitioned by functionality (LLM, Embeddings, Web Search).
+The application follows a layered architecture where the entry point delegates to command modules, which in turn use a library of core services and abstractions.
 
-## External Libraries Analysis
-The project maintains a lean dependency profile, favoring built-in Node.js features and direct REST API calls over heavy vendor-specific SDKs where possible.
+- **Entry Point (`src/index.ts`)**: Orchestrates the CLI using `commander` and routes tasks to specific command modules.
+- **Command Layer (`src/commands/`)**:
+    - `search.ts`, `watch.ts`, `watch_mcp.ts`: These modules implement the business logic for specific CLI actions.
+    - They depend on `src/lib/context.js` for dependency resolution and `src/lib/store.js` for data access interfaces.
+- **Service Layer (`src/lib/`)**:
+    - `context.ts`: Acts as a Service Locator/Factory. It instantiates concrete implementations of stores, file systems, and AI clients.
+    - `config.ts`: Handles configuration loading, validation (via `zod`), and environment variable parsing.
+    - `store.ts`: Defines the core `Store` interface and provides a `TestStore` for development/testing.
+    - `qdrant-store.ts`: A concrete implementation of the `Store` interface using the Qdrant vector database.
+    - `utils.ts` & `sync-helpers.ts`: Provide shared utilities for file hashing, syncing logic, and progress tracking.
+    - `file.ts` & `git.ts`: Abstractions for file system operations and Git ignore pattern handling.
+- **Provider Layer (`src/lib/providers/`)**:
+    - Abstracted AI service integrations for LLMs, Embeddings, and Web Search.
+    - `embeddings/` & `llm/`: Support multiple backends (OpenAI, Anthropic, Google, Ollama).
+    - `web/`: Integration with the Tavily search API.
 
-### Primary Runtime Dependencies:
-| Library | Version | Purpose |
-| :--- | :--- | :--- |
-| `commander` | `^14.0.2` | CLI framework for argument parsing and command management. |
-| `@qdrant/js-client-rest` | `^1.9.0` | Official client for the Qdrant vector database. |
-| `openai` | `^4.52.0` | Client for OpenAI and Ollama-compatible embedding/chat endpoints. |
-| `@modelcontextprotocol/sdk` | `^1.22.0` | Implementation of the Model Context Protocol (MCP) for AI agent integration. |
-| `@clack/prompts` | `^0.11.0` | Interactive terminal UI components (spinners, input prompts). |
-| `zod` | `^3.23.8` | Schema validation for configuration files and internal types. |
-| `winston` | `^3.18.3` | Robust logging with file rotation support. |
-| `yaml` | `^2.8.2` | Configuration file parsing. |
-| `ignore` | `^7.0.5` | Logic for processing `.gitignore` patterns. |
-| `istextorbinary` | `^9.5.0` | Content detection to avoid indexing binary files. |
+## External Dependencies
 
-### Build & Test Dependencies:
-*   **Vitest**: Used for unit testing and code coverage.
-*   **BATS**: Bash Automated Testing System for end-to-end CLI integration tests.
-*   **Biome**: Used for linting and code formatting.
+The project leverages several key libraries for its functionality:
 
-## Service Integrations
-`mgrep` is designed to be provider-agnostic, integrating with several external AI and data services:
-
-1.  **Vector Storage**: **Qdrant** is the primary vector database integration, supporting both local and cloud instances via the REST client.
-2.  **LLM Providers**:
-    *   **OpenAI / Ollama**: Integrated via the `openai` library.
-    *   **Anthropic (Claude)**: Integrated via direct `fetch` calls to the Messages API, avoiding the full SDK.
-    *   **Google (Gemini)**: Integrated via direct `fetch` calls to the Generative Language API.
-3.  **Web Search**: **Tavily** is used for fetching real-time web context, integrated via direct REST API calls.
-
-## Dependency Injection Patterns
-The project utilizes a **Factory Pattern** to manage dependencies:
-
-*   **Interface Abstraction**: Core components like `Store`, `LLMClient`, and `EmbeddingsClient` are defined as TypeScript interfaces. This allows different implementations to be swapped transparently.
-*   **Centralized Instantiation**: The `createStore` function in `src/lib/context.ts` acts as the single point of truth for object creation. It selects the appropriate implementation (e.g., `QdrantStore` vs `TestStore`) based on the environment (test vs production) and configuration.
-*   **Configuration Injection**: Dependencies are configured via a centralized `MgrepConfig` object, which is passed into the factories at runtime.
-
-## Module Coupling Assessment
-*   **Low Command-to-Provider Coupling**: CLI commands do not import concrete provider classes (like `AnthropicLLM`). They only know about the `Store` or `LLMClient` interfaces.
-*   **Cohesive Providers**: Each provider (Anthropic, Google, etc.) is isolated in its own file, ensuring that changes to one provider's API do not affect others.
-*   **Context as a Liaison**: `src/lib/context.ts` is the only module with high coupling to all concrete implementations, which is the intended design for a centralized factory.
-*   **Testability**: The use of a `TestStore` implementation allows integration tests to run without requiring a live Qdrant instance, demonstrating effective decoupling through the `Store` interface.
+- **Vector Database**: `@qdrant/js-client-rest` for semantic data storage and retrieval.
+- **AI Clients**: `openai` (used for OpenAI and Ollama compatibility).
+- **CLI & UX**: 
+    - `commander`: Command-line argument parsing and routing.
+    - `chalk` & `ora`: Terminal styling and progress spinners.
+    - `@clack/prompts`: Interactive CLI prompts.
+- **Validation & Parsing**:
+    - `zod`: Schema validation for configurations.
+    - `yaml`: Parsing for `.mgreprc.yaml` files.
+- **System & File Utilities**:
+    - `ignore`: Support for `.gitignore` files.
+    - `istextorbinary`: Identification of searchable file types.
+    - `p-limit`: Concurrency management for bulk file processing.
+- **Communication Protocol**: `@modelcontextprotocol/sdk` for exposing functionality as an MCP server.
+- **Logging**: `winston` and `winston-daily-rotate-file` for robust application logging.
 
 ## Dependency Graph
+
+The dependency flow is primarily unidirectional from the entry point down to the infrastructure layer:
+
 ```mermaid
 graph TD
-    subgraph CLI_Entry
-        index[index.ts]
-    end
-
-    subgraph Commands
-        search[search.ts]
-        watch[watch.ts]
-        mcp[watch_mcp.ts]
-    end
-
-    subgraph Factory_Layer
-        context[context.ts]
-    end
-
-    subgraph Service_Implementations
-        Qdrant[qdrant-store.ts]
-        Anthropic[anthropic.ts]
-        Google[google.ts]
-        OpenAI[openai.ts]
-        Tavily[tavily.ts]
-    end
-
-    index --> search
-    index --> watch
-    index --> mcp
-
-    search --> context
-    watch --> context
-    mcp --> context
-
-    context --> Qdrant
-    context --> Anthropic
-    context --> Google
-    context --> OpenAI
-    context --> Tavily
+    index.ts --> commands/search.ts
+    index.ts --> commands/watch.ts
+    index.ts --> commands/watch_mcp.ts
+    
+    commands/search.ts --> lib/context.ts
+    commands/watch.ts --> lib/context.ts
+    
+    lib/context.ts --> lib/config.ts
+    lib/context.ts --> lib/qdrant-store.ts
+    lib/context.ts --> lib/providers/index.ts
+    
+    lib/qdrant-store.ts --> lib/providers/types.ts
+    lib/qdrant-store.ts --> lib/store.ts
+    
+    lib/providers/index.ts --> lib/providers/llm/
+    lib/providers/index.ts --> lib/providers/embeddings/
+    
+    lib/utils.ts --> lib/store.ts
+    lib/utils.ts --> lib/file.ts
 ```
 
-## Potential Dependency Issues
-*   **Maintenance of Custom API Clients**: By using direct `fetch` calls for Anthropic and Google Gemini instead of their official SDKs, the project must manually maintain these integrations if the service providers make breaking changes to their REST APIs.
-*   **Single Production Store**: Currently, `QdrantStore` is the only non-test implementation of the `Store` interface. While the architecture supports other vector databases, adding one would require extending the `context.ts` factory and adding new configuration schemas.
-*   **Synchronous Config Loading**: Configuration is loaded synchronously in some parts of the lifecycle, which is acceptable for a CLI tool but could be a bottleneck if configuration sources were to become remote or extremely large.
+## Dependency Injection
+
+The application uses a **Factory/Service Locator** pattern centered in `src/lib/context.ts`.
+
+- **Decoupling via Interfaces**: The core logic depends on the `Store`, `EmbeddingsClient`, and `LLMClient` interfaces rather than concrete implementations.
+- **Dynamic Instantiation**: `createStore()` and `createLLMClient()` determine which implementation to instantiate at runtime based on the user's configuration file or environment variables.
+- **Constructor Injection**: `QdrantStore` receives its dependencies (`embeddingsClient`, `llmClient`) through its constructor, facilitating easier testing and implementation swapping.
+- **Test Doubles**: The `isTest` flag in `context.ts` allows the application to automatically swap the heavy `QdrantStore` for a lightweight `TestStore` during unit and integration tests.
+
+## Potential Issues
+
+- **Singleton-like Config Cache**: `src/lib/config.ts` maintains a module-level `configCache`. While efficient, it might lead to state leakage between tests if the environment isn't properly reset.
+- **Platform Coupling**: Several modules rely on `process.cwd()` for configuration discovery and file path resolution, which might cause inconsistent behavior if the tool is executed from different directories.
+- **Tight Coupling in Context**: `src/lib/context.ts` imports all concrete implementations (Qdrant, OpenAI, etc.). While it hides this from the rest of the app, this file becomes a central point of change whenever a new provider or store type is added.
+- **Sync Logic Complexity**: `src/lib/utils.ts` contains significant business logic for syncing. This creates a tight coupling between file system abstractions, hashing logic, and the Store interface.

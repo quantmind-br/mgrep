@@ -11,6 +11,7 @@ import type {
   Store,
   StoreFile,
   StoreInfo,
+  StoreStats,
   TextChunk,
   UploadFileOptions,
 } from "./store.js";
@@ -505,7 +506,7 @@ Answer the question based on the sources above. Cite sources using <cite i="N" /
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         counts: {
-          pending: 0, // Qdrant processes immediately
+          pending: 0,
           in_progress: 0,
         },
       };
@@ -516,6 +517,31 @@ Answer the question based on the sources above. Cite sources using <cite i="N" /
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         counts: { pending: 0, in_progress: 0 },
+      };
+    }
+  }
+
+  async getStats(storeId: string): Promise<StoreStats> {
+    const collectionName = this.getCollectionName(storeId);
+
+    try {
+      const collection = await this.client.getCollection(collectionName);
+      return {
+        store_name: storeId,
+        description: `Qdrant collection: ${collectionName}`,
+        chunk_count: collection.points_count ?? 0,
+        file_count: null,
+        created_at: null,
+        updated_at: null,
+      };
+    } catch {
+      return {
+        store_name: storeId,
+        description: "Store does not exist",
+        chunk_count: 0,
+        file_count: 0,
+        created_at: null,
+        updated_at: null,
       };
     }
   }

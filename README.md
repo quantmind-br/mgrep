@@ -178,6 +178,50 @@ C4Container
 - **API Keys**: Required for configured providers (e.g., `OPENAI_API_KEY`, `TAVILY_API_KEY`).
 - **Qdrant**: Access to a Qdrant instance (local or cloud) via `MGREP_QDRANT_URL`.
 
+## File Filtering
+
+mgrep automatically ignores files that are not useful for semantic search.
+
+### Default Categories
+
+| Category | Examples | Configurable |
+|----------|----------|--------------|
+| `vendor` | `node_modules/`, `vendor/`, `Pods/` | Yes |
+| `generated` | `dist/`, `*.min.js`, lock files | Yes |
+| `binary` | `*.png`, `*.pdf`, `*.exe` | Yes |
+| `config` | `.github/`, `Dockerfile` | Yes (off by default) |
+
+### Custom Configuration
+
+```yaml
+# .mgreprc.yaml
+ignore:
+  categories:
+    vendor: true
+    generated: true
+    config: true  # enable config indexing
+  additional:
+    - "internal/"
+  exceptions:
+    - "!vendor/important-lib/"  # keep this specific directory
+```
+
+### Precedence
+
+1. `.gitignore` (in git repos)
+2. `.mgrepignore`
+3. Default patterns (configurable via `.mgreprc.yaml`)
+4. CLI flags
+
+### Inspection & Management Commands
+
+- `mgrep config --show-ignore`: View active ignore patterns and categories.
+- `mgrep check-ignore <path>`: Check if a specific file would be ignored.
+- `mgrep sync`: Synchronize local files with the store.
+- `mgrep sync --dry-run`: Preview changes without modifying the store.
+- `mgrep sync --include-vendor`: Force indexing of vendor files.
+- `mgrep sync --include-all`: Index everything (disable all ignore categories).
+
 ## Development Notes
 - **Configuration**: Uses `.mgreprc.yaml` or global configuration files. Validated via Zod.
 - **Sync Logic**: Uses SHA-256 hashing to determine file changes, ensuring efficient incremental updates.

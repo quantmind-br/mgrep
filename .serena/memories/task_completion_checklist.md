@@ -48,10 +48,35 @@ npm run typecheck && npm run lint && npm run test:unit
 npm run build && npm run test:all
 ```
 
+## Issue Tracking (bd/beads)
+This project uses **bd (beads)** for issue tracking:
+```bash
+bd prime          # Get workflow context
+bd ready          # Find unblocked work
+bd create "Title" --type task --priority 2  # Create issue
+bd close <id>     # Complete work
+bd sync           # Sync with git (run at session end)
+```
+
 ## Commit Guidelines
 - Use conventional commit format
 - Reference issues if applicable
 - Keep commits atomic and focused
+
+## Session Completion (Landing the Plane)
+When ending a work session, complete ALL steps:
+1. File issues for remaining work: `bd create`
+2. Run quality gates: `npm run lint && npm run test`
+3. Update issue status: `bd close <id>`
+4. Push to remote:
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+
+**Critical**: Work is NOT complete until `git push` succeeds.
 
 ## Notes
 - Set `MGREP_IS_TEST=1` for unit tests to use in-memory TestStore

@@ -52,6 +52,22 @@ const TavilyConfigSchema = z.object({
   includeRawContent: z.boolean().default(false),
 });
 
+const IgnoreConfigSchema = z
+  .object({
+    categories: z
+      .object({
+        vendor: z.boolean().default(true),
+        generated: z.boolean().default(true),
+        binary: z.boolean().default(true),
+        config: z.boolean().default(false),
+      })
+      .default({}),
+    additional: z.array(z.string()).default([]),
+    exceptions: z.array(z.string()).default([]),
+    detectGenerated: z.boolean().default(true),
+  })
+  .default({});
+
 const ConfigSchema = z.object({
   maxFileSize: z.number().positive().optional(),
   qdrant: QdrantConfigSchema.default({}),
@@ -59,6 +75,7 @@ const ConfigSchema = z.object({
   llm: LLMConfigSchema.default({}),
   sync: SyncConfigSchema.default({}),
   tavily: TavilyConfigSchema.default({}),
+  ignore: IgnoreConfigSchema.default({}),
 });
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
@@ -67,6 +84,7 @@ export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 export type QdrantConfig = z.infer<typeof QdrantConfigSchema>;
 export type SyncConfig = z.infer<typeof SyncConfigSchema>;
 export type TavilyConfig = z.infer<typeof TavilyConfigSchema>;
+export type IgnoreConfig = z.infer<typeof IgnoreConfigSchema>;
 
 /**
  * CLI options that can override config
@@ -105,6 +123,10 @@ export interface MgrepConfig {
    * Tavily web search configuration
    */
   tavily: TavilyConfig;
+  /**
+   * Ignore configuration
+   */
+  ignore: IgnoreConfig;
 }
 
 const DEFAULT_CONFIG: MgrepConfig = {
@@ -136,6 +158,17 @@ const DEFAULT_CONFIG: MgrepConfig = {
     searchDepth: "basic",
     includeImages: false,
     includeRawContent: false,
+  },
+  ignore: {
+    categories: {
+      vendor: true,
+      generated: true,
+      binary: true,
+      config: false,
+    },
+    additional: [],
+    exceptions: [],
+    detectGenerated: true,
   },
 };
 
@@ -245,6 +278,7 @@ function loadEnvConfig(): Partial<MgrepConfig> {
   const embModel = process.env[`${ENV_PREFIX}EMBEDDINGS_MODEL`];
   const embBaseUrl = process.env[`${ENV_PREFIX}EMBEDDINGS_BASE_URL`];
   const embApiKey = process.env[`${ENV_PREFIX}EMBEDDINGS_API_KEY`];
+  const embDimensions = process.env[`${ENV_PREFIX}EMBEDDINGS_DIMENSIONS`];
   const embTimeoutMs = process.env[`${ENV_PREFIX}EMBEDDINGS_TIMEOUT_MS`];
   const embMaxRetries = process.env[`${ENV_PREFIX}EMBEDDINGS_MAX_RETRIES`];
   if (
@@ -252,6 +286,7 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     embModel ||
     embBaseUrl ||
     embApiKey ||
+    embDimensions ||
     embTimeoutMs ||
     embMaxRetries
   ) {
@@ -260,6 +295,8 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     if (embModel) embeddings.model = embModel;
     if (embBaseUrl) embeddings.baseUrl = embBaseUrl;
     if (embApiKey) embeddings.apiKey = embApiKey;
+    if (embDimensions)
+      embeddings.dimensions = Number.parseInt(embDimensions, 10);
     if (embTimeoutMs) embeddings.timeoutMs = Number.parseInt(embTimeoutMs, 10);
     if (embMaxRetries)
       embeddings.maxRetries = Number.parseInt(embMaxRetries, 10);
@@ -324,6 +361,34 @@ function loadEnvConfig(): Partial<MgrepConfig> {
     };
   }
 
+  // Ignore categories
+  const ignoreVendor = process.env[`${ENV_PREFIX}IGNORE_VENDOR`];
+  const ignoreGenerated = process.env[`${ENV_PREFIX}IGNORE_GENERATED`];
+  const ignoreBinary = process.env[`${ENV_PREFIX}IGNORE_BINARY`];
+  const ignoreConfig = process.env[`${ENV_PREFIX}IGNORE_CONFIG`];
+
+  if (ignoreVendor || ignoreGenerated || ignoreBinary || ignoreConfig) {
+    config.ignore = {
+      categories: {
+        vendor: ignoreVendor
+          ? ignoreVendor === "true"
+          : DEFAULT_CONFIG.ignore.categories.vendor,
+        generated: ignoreGenerated
+          ? ignoreGenerated === "true"
+          : DEFAULT_CONFIG.ignore.categories.generated,
+        binary: ignoreBinary
+          ? ignoreBinary === "true"
+          : DEFAULT_CONFIG.ignore.categories.binary,
+        config: ignoreConfig
+          ? ignoreConfig === "true"
+          : DEFAULT_CONFIG.ignore.categories.config,
+      },
+      additional: [],
+      exceptions: [],
+      detectGenerated: DEFAULT_CONFIG.ignore.detectGenerated,
+    };
+  }
+
   return config;
 }
 
@@ -341,6 +406,12 @@ function deepMergeConfig(
     llm: { ...target.llm },
     sync: { ...target.sync },
     tavily: { ...target.tavily },
+    ignore: {
+      categories: { ...target.ignore.categories },
+      additional: [...target.ignore.additional],
+      exceptions: [...target.ignore.exceptions],
+      detectGenerated: target.ignore.detectGenerated,
+    },
   };
 
   for (const source of sources) {
@@ -363,6 +434,24 @@ function deepMergeConfig(
     }
     if (source.tavily) {
       result.tavily = { ...result.tavily, ...source.tavily };
+    }
+    if (source.ignore) {
+      result.ignore = {
+        categories: {
+          ...result.ignore.categories,
+          ...(source.ignore.categories || {}),
+        },
+        additional: [
+          ...result.ignore.additional,
+          ...(source.ignore.additional || []),
+        ],
+        exceptions: [
+          ...result.ignore.exceptions,
+          ...(source.ignore.exceptions || []),
+        ],
+        detectGenerated:
+          source.ignore.detectGenerated ?? result.ignore.detectGenerated,
+      };
     }
   }
 

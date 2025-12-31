@@ -1,131 +1,95 @@
-# API Documentation
+# API Analysis
 
-## APIs Served by This Project
+## Project Type
+This is a semantic search CLI tool and library that also functions as a **Model Context Protocol (MCP)** server. It enables AI agents and humans to perform semantic searches, RAG-based question answering, and web searches over local files and the internet.
 
-This project primarily exposes functionality via the **Model Context Protocol (MCP)**, allowing AI agents (like Claude Desktop or other MCP clients) to perform semantic searches over local codebases and the web.
+## Endpoints Overview
+The project does not expose a traditional REST/HTTP API. Instead, it provides an **MCP Server** interface (JSON-RPC over Stdio) and a **CLI** interface.
 
-### MCP Tools (mgrep)
-The main `mgrep` service exposes an MCP server that provides semantic search and RAG (Retrieval-Augmented Generation) capabilities.
+### MCP Tools (JSON-RPC)
+The MCP server exposes the following tools for AI agents:
+- `mgrep-search`: Semantic search over indexed local files.
+- `mgrep-ask`: RAG-based question answering about the codebase.
+- `mgrep-web-search`: Web search using Tavily AI.
+- `mgrep-sync`: Synchronize local files with the vector store.
+- `mgrep-get-file`: Retrieve file content with optional line ranges.
+- `mgrep-list-files`: List indexed files with pagination.
+- `mgrep-get-context`: Get code context around a specific line.
+- `mgrep-stats`: Get statistics about the indexed store.
 
-**Transport**: Stdio (Standard Input/Output)  
-**Entry Point**: `mgrep mcp`
+### CLI Commands
+- `mgrep search [pattern] [path]`: Default command for semantic search.
+- `mgrep watch`: Watches for file changes and syncs them to the store.
+- `mgrep mcp`: Starts the MCP server.
+- `mgrep install-*`: Helper commands for IDE/Agent integrations.
 
-#### `mgrep-search`
-- **Method**: MCP Tool Call
-- **Description**: Semantic search over indexed local files. Finds code and documentation based on meaning and intent.
-- **Request Parameters**:
+## Authentication
+Authentication is managed via API keys for various providers, configured through environment variables or a YAML configuration file (`.mgreprc.yaml`).
+- **Required Keys**: `MGREP_OPENAI_API_KEY`, `MGREP_TAVILY_API_KEY`, `MGREP_ANTHROPIC_API_KEY`, `MGREP_GOOGLE_API_KEY`, or `MGREP_QDRANT_API_KEY` (depending on the provider used).
+- **Environment Variables**: Prefixed with `MGREP_` (e.g., `MGREP_STORE`, `MGREP_SYNC`).
+
+## Detailed Endpoints (MCP Tools)
+
+### Tool: `mgrep-search`
+- **Description**: Performs a semantic search over indexed local files.
+- **Parameters**:
   - `query` (string, required): Natural language search query.
-  - `path` (string, optional): Path filter to search within a specific directory.
-  - `max_results` (number, optional, default: 10): Maximum results to return.
-  - `include_content` (boolean, optional, default: false): Whether to include the actual file content in results.
-  - `rerank` (boolean, optional, default: true): Enable reranking for better result quality.
-- **Response**: A formatted string containing matching file paths, line ranges, and relevance scores.
+  - `path` (string, optional): Directory filter.
+  - `max_results` (number, optional, default: 10): Limit of results (max 50).
+  - `include_content` (boolean, optional, default: false): Whether to return the file content.
+  - `rerank` (boolean, optional, default: true): Enable reranking for quality.
+- **Response**: String containing matched file paths, line numbers, scores, and optionally content.
 
-#### `mgrep-ask`
-- **Method**: MCP Tool Call
-- **Description**: Ask questions about the codebase and get AI-generated answers with citations (RAG).
-- **Request Parameters**:
-  - `question` (string, required): Question to answer about the codebase.
-  - `path` (string, optional): Path filter to limit search scope.
+### Tool: `mgrep-ask`
+- **Description**: RAG-based question answering about the codebase.
+- **Parameters**:
+  - `question` (string, required): Question to answer.
+  - `path` (string, optional): Scope filter.
   - `max_results` (number, optional, default: 10): Number of source chunks to consider.
-  - `rerank` (boolean, optional, default: true): Enable reranking for better context quality.
-- **Response**: AI-generated answer with citations and a list of sources used.
+  - `rerank` (boolean, optional, default: true): Enable reranking.
+- **Response**: AI-generated answer with citations and source list.
 
-#### `mgrep-web-search`
-- **Method**: MCP Tool Call
-- **Description**: Search the web using Tavily AI.
-- **Request Parameters**:
+### Tool: `mgrep-web-search`
+- **Description**: Search the web using Tavily.
+- **Parameters**:
   - `query` (string, required): Web search query.
-  - `max_results` (number, optional, default: 10): Maximum results to return.
-  - `include_content` (boolean, optional, default: true): Include full content snippets for each result.
-- **Response**: List of web results with titles, URLs, and snippets.
+  - `max_results` (number, optional, default: 10): Max results (max 20).
+  - `include_content` (boolean, optional, default: true): Include content snippets.
+- **Response**: List of URLs and content snippets.
 
-#### `mgrep-sync`
-- **Method**: MCP Tool Call
-- **Description**: Synchronize local files with the vector store (Qdrant).
-- **Request Parameters**:
-  - `dry_run` (boolean, optional, default: false): If true, only show what would be synced.
-- **Response**: Summary of the synchronization process (files uploaded/deleted/skipped).
+### Tool: `mgrep-get-file`
+- **Description**: Retrieve specific file content.
+- **Parameters**:
+  - `path` (string, required): Path to the file.
+  - `start_line` (number, optional): Starting line (1-indexed).
+  - `end_line` (number, optional): Ending line (inclusive).
+- **Response**: File content or specified line range.
 
-### MCP Tools (tavily-mcp)
-A separate, specialized MCP server located in `/tavily-mcp` provides direct and advanced access to Tavily APIs.
+### Tool: `mgrep-list-files`
+- **Description**: Explore the indexed codebase structure.
+- **Parameters**:
+  - `path_prefix` (string, optional): Filter by path.
+  - `limit` (number, optional, default: 50): Pagination limit.
+  - `offset` (number, optional, default: 0): Pagination offset.
+  - `include_hash` (boolean, optional): Include file SHA256 hashes.
 
-**Entry Point**: `node tavily-mcp/dist/index.js`
+## Programmatic API
+The project exports several TypeScript interfaces and classes for use as a library.
 
-- **Tools**:
-  - `tavily-search`: Comprehensive web search with filters (topic, time range, domains).
-  - `tavily-extract`: Extract clean content from a list of URLs.
-  - `tavily-crawl`: Crawl a base URL and find sub-pages.
-  - `tavily-map`: List all sub-pages for a given domain.
+### `Store` Interface
+Main interface for vector store operations:
+- `search(storeIds, query, top_k, options, filters)`: Semantic search.
+- `ask(storeIds, question, top_k, options, filters)`: RAG answering.
+- `uploadFile(storeId, file, options)`: Index a file.
+- `deleteFile(storeId, externalId)`: Remove a file.
+- `listFiles(storeId, options)`: List indexed files.
+- `getInfo(storeId)`: Get store status and counts.
 
----
+### `MgrepConfig` Interface
+Defines the structure for configuration including `qdrant`, `embeddings`, `llm`, `sync`, and `tavily` settings.
 
-### Authentication & Security
-- **Local Context**: The MCP server runs as a local process. Security is inherited from the host machine's environment.
-- **API Keys**: External service keys (OpenAI, Anthropic, Google, Tavily) are managed via:
-  - Environment variables (e.g., `MGREP_LLM_API_KEY`, `OPENAI_API_KEY`).
-  - Configuration files (`.mgreprc.yaml` or `~/.config/mgrep/config.yaml`).
-- **Communication**: MCP uses JSON-RPC over stdio, which is secure as it only allows communication between the local client and the server process.
-
-### Rate Limiting & Constraints
-- **Concurrency**: File synchronization concurrency is configurable via `sync.concurrency` (default: 20).
-- **File Size**: Maximum file size for indexing is configurable via `maxFileSize` (default: 10MB).
-- **Provider Limits**: Subject to the rate limits of the configured AI providers (OpenAI, Google, etc.).
-
----
-
-## External API Dependencies
-
-### Services Consumed
-
-#### Qdrant (Vector Database)
-- **Purpose**: Storage and retrieval of text embeddings for semantic search.
-- **Configuration**: URL (`MGREP_QDRANT_URL`) and optional API key.
-- **Integration**: Uses `@qdrant/js-client-rest`.
-- **Error Handling**: Retries are handled at the transport level; the application validates collection existence before operations.
-
-#### LLM Providers (OpenAI, Anthropic, Google, Ollama)
-- **Purpose**: Generating answers for `mgrep-ask` and reranking search results.
-- **Endpoints**:
-  - OpenAI: `POST /v1/chat/completions`
-  - Anthropic: `POST /v1/messages`
-  - Google: Gemini API (Generative Language)
-  - Ollama: OpenAI-compatible chat endpoint.
-- **Authentication**: Bearer Token / API Key.
-- **Resilience**: Configurable `timeoutMs` (default: 60s) and `maxRetries` (default: 3).
-
-#### Embeddings Providers (OpenAI, Google, Ollama)
-- **Purpose**: Converting text chunks into vector representations.
-- **Endpoints**:
-  - OpenAI: `POST /v1/embeddings`
-  - Google: `POST /v1beta/models/{model}:embedContent`
-- **Integration**: OpenAI SDK for OpenAI/Ollama; Native `fetch` for Google.
-- **Resilience**: Configurable `batchSize` (default: 100), `timeoutMs` (default: 30s), and `maxRetries` (default: 3).
-
-#### Tavily AI
-- **Purpose**: Web search capabilities.
-- **Base URL**: `https://api.tavily.com`
-- **Endpoints Used**: `/search`, `/extract`, `/crawl`, `/map`.
-- **Authentication**: API Key via `X-API-KEY` or Bearer token.
-
----
-
-### Integration Patterns
-- **Provider Factory**: The project uses a factory pattern (`createLLMClient`, `createEmbeddingsClient`) to abstract away different AI providers under a common interface (`LLMClient`, `EmbeddingsClient`).
-- **Standardized Configuration**: All external integrations share a similar configuration structure (provider, model, apiKey, baseUrl, timeout, retries).
-- **Zod Validation**: Configuration and API responses (where critical) are validated using Zod schemas to ensure type safety and contract adherence.
-
----
-
-## Available Documentation
-
-| Document | Path | Description |
-| :--- | :--- | :--- |
-| **API Analysis** | `.ai/docs/api_analysis.md` | Deep dive into internal API structures. |
-| **Project Overview** | `README.md` | General usage and installation instructions. |
-| **MCP Integration** | `src/commands/watch_mcp.ts` | Source code for MCP tool definitions and handlers. |
-| **Config Schema** | `src/lib/config.ts` | Detailed Zod schemas for all configuration options. |
-| **Skill Definition** | `plugins/mgrep/skills/mgrep/SKILL.md` | Documentation for Claude-specific skill integration. |
-
-**Documentation Quality Evaluation**:  
-The documentation is **high quality** and **developer-centric**. The inclusion of Zod schemas for configuration and clear MCP tool definitions makes integration straightforward. The project also provides an `.mgreprc.yaml.example` which serves as a practical reference for API configuration.
+## Common Patterns
+- **Sync-on-Demand**: Files are synchronized using SHA256 hashes to detect changes.
+- **Deterministic IDs**: Qdrant point IDs are generated from file path hashes.
+- **Stdio Transport**: The MCP server communicates via stdin/stdout, while logging is redirected to stderr.
+- **Path Filtering**: Most search/list tools support `path` or `path_prefix` filters for directory-specific operations.

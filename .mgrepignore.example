@@ -1,0 +1,11 @@
+# Example .mgrepignore file
+# Uses gitignore syntax
+
+# Project-specific exclusions
+internal-tools/
+legacy-code/
+*.proprietary
+
+# Override default behavior
+!dist/bundle.js  # Keep this generated file
+!*.d.ts          # Keep TypeScript definitions

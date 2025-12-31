@@ -16,7 +16,6 @@ import {
   createStore,
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
-import { DEFAULT_IGNORE_PATTERNS } from "../lib/file.js";
 import type {
   AskResponse,
   ChunkType,
@@ -640,7 +639,8 @@ export const watchMcp = new Command("mcp")
             try {
               const config = loadConfig(root);
               const fileSystem = createFileSystem({
-                ignorePatterns: [...DEFAULT_IGNORE_PATTERNS],
+                ignorePatterns: [],
+                ignoreConfig: config.ignore,
               });
 
               // Ensure store exists
@@ -940,37 +940,7 @@ export const watchMcp = new Command("mcp")
           // mgrep-stats: Get store statistics
           // ================================================================
           case "mgrep-stats": {
-            let fileCount = 0;
-            const seenPaths = new Set<string>();
-
-            for await (const file of store.listFiles(options.store)) {
-              const path = (file.metadata as FileMetadata)?.path;
-              if (path && !seenPaths.has(path)) {
-                seenPaths.add(path);
-                fileCount++;
-              }
-            }
-
-            interface StoreInfo {
-              name?: string;
-              description?: string;
-              created_at?: string;
-              updated_at?: string;
-            }
-
-            let storeInfo: StoreInfo = {};
-
-            try {
-              const info = (await store.retrieve(options.store)) as StoreInfo;
-              storeInfo = {
-                name: info.name,
-                description: info.description,
-                created_at: info.created_at,
-                updated_at: info.updated_at,
-              };
-            } catch {
-              // Store may not exist yet
-            }
+            const stats = await store.getStats(options.store);
 
             return {
               content: [
@@ -978,12 +948,12 @@ export const watchMcp = new Command("mcp")
                   type: "text",
                   text: JSON.stringify(
                     {
-                      store_name: storeInfo.name ?? options.store,
-                      description:
-                        storeInfo.description ?? "mgrep semantic search store",
-                      file_count: fileCount,
-                      created_at: storeInfo.created_at ?? null,
-                      updated_at: storeInfo.updated_at ?? null,
+                      store_name: stats.store_name,
+                      description: stats.description,
+                      chunk_count: stats.chunk_count,
+                      file_count: stats.file_count,
+                      created_at: stats.created_at,
+                      updated_at: stats.updated_at,
                       root_path: root,
                     },
                     null,
