@@ -227,7 +227,7 @@ export function createTextChunk(
 // Import after mocks
 // ============================================================================
 
-import { MGREP_TOOLS, watchMcp } from "./watch_mcp.js";
+import { MGREP_TOOLS, MGREP_PROMPTS, watchMcp } from "./watch_mcp.js";
 
 // ============================================================================
 // Existing Tests
@@ -1637,6 +1637,77 @@ describe("mgrep-find-references tool", () => {
 
       const isValid = pathFilter.startsWith(testRoot);
       expect(isValid).toBe(false);
+    });
+  });
+});
+
+// ============================================================================
+// MCP Prompts Tests
+// ============================================================================
+
+describe("MCP Prompts", () => {
+  describe("MGREP_PROMPTS structure", () => {
+    it("should define exactly 4 prompts", () => {
+      expect(MGREP_PROMPTS).toHaveLength(4);
+    });
+
+    it("should include codebase-overview prompt", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "codebase-overview");
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain("overview");
+    });
+
+    it("should include find-implementation prompt", () => {
+      const prompt = MGREP_PROMPTS.find(
+        (p) => p.name === "find-implementation",
+      );
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain("implemented");
+    });
+
+    it("should include debug-flow prompt", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "debug-flow");
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain("flow");
+    });
+
+    it("should include find-similar-code prompt", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "find-similar-code");
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain("similar");
+    });
+  });
+
+  describe("prompt arguments", () => {
+    it("codebase-overview should have no required arguments", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "codebase-overview");
+      expect(prompt?.arguments).toBeUndefined();
+    });
+
+    it("find-implementation should require feature argument", () => {
+      const prompt = MGREP_PROMPTS.find(
+        (p) => p.name === "find-implementation",
+      );
+      expect(prompt?.arguments).toBeDefined();
+      expect(prompt?.arguments).toHaveLength(1);
+      expect(prompt?.arguments?.[0].name).toBe("feature");
+      expect(prompt?.arguments?.[0].required).toBe(true);
+    });
+
+    it("debug-flow should require entrypoint argument", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "debug-flow");
+      expect(prompt?.arguments).toBeDefined();
+      expect(prompt?.arguments).toHaveLength(1);
+      expect(prompt?.arguments?.[0].name).toBe("entrypoint");
+      expect(prompt?.arguments?.[0].required).toBe(true);
+    });
+
+    it("find-similar-code should require code argument", () => {
+      const prompt = MGREP_PROMPTS.find((p) => p.name === "find-similar-code");
+      expect(prompt?.arguments).toBeDefined();
+      expect(prompt?.arguments).toHaveLength(1);
+      expect(prompt?.arguments?.[0].name).toBe("code");
+      expect(prompt?.arguments?.[0].required).toBe(true);
     });
   });
 });
