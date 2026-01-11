@@ -6,6 +6,11 @@ internal-tools/
 legacy-code/
 *.proprietary
 
-# Override default behavior
+# Keep specific generated files
 !dist/bundle.js  # Keep this generated file
 !*.d.ts          # Keep TypeScript definitions
+
+# Override default behavior (examples of using negation)
+# These patterns override the default ignore patterns
+!test/coverage/    # Keep test coverage reports
+!docs/*.md          # Keep documentation files

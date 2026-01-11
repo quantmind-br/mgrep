@@ -173,10 +173,197 @@ C4Container
 | `mgrep-list-files` | List indexed files with pagination. | `path_prefix`, `limit`, `offset`, `include_hash` |
 | `mgrep-get-context` | Get expanded context around a line. | `path`, `line`, `context_lines` |
 | `mgrep-stats` | Get store statistics. | (none) |
+| `mgrep-find-symbol` | Find symbol definitions (functions, classes, interfaces, types). | `name`, `type`, `path`, `exact`, `max_results` |
+| `mgrep-find-references` | Find all usages/references of a symbol. | `symbol`, `path`, `include_definition`, `max_results` |
+
+### MCP Resources
+
+mgrep implements MCP Resources to allow agents to browse indexed files directly without calling tools.
+
+#### Resource Format
+
+Resources are exposed as files with URI format: `mgrep://file/{path}`
+
+| Property | Description |
+|----------|-------------|
+| URI | Unique identifier for resource (e.g., `mgrep://file/src/lib/file.ts`) |
+| name | File name or description |
+| mimeType | Content type (always `text/plain` for text files) |
+
+#### Benefits
+
+- **Direct File Access**: Agents can read files without tool call overhead
+- **Better UX**: File browsers in agent UI show project structure clearly
+- **Reduced Tool Calls**: Agents can scan codebase using Resources instead of repeated mgrep-get-file calls
+- **Standard Protocol**: Uses Model Context Protocol Resources specification
+
+#### Usage Example
+
+```bash
+# Agent can access files directly by reading resources
+# No need to call mgrep-get-file for each file
+```
 
 ### External Service Requirements
 - **API Keys**: Required for configured providers (e.g., `OPENAI_API_KEY`, `TAVILY_API_KEY`).
 - **Qdrant**: Access to a Qdrant instance (local or cloud) via `MGREP_QDRANT_URL`.
+
+### Symbol Search
+
+mgrep provides symbol search capabilities to locate function/class definitions and find all usages across the codebase. This is essential for refactoring, impact analysis, and code navigation workflows.
+
+#### Supported Symbol Types
+
+| Type | Description | Examples |
+|-------|-------------|----------|
+| `function` | Function declarations and methods | `function main()`, `async function fetch()` |
+| `class` | Class definitions | `class Database`, `export class Store` |
+| `interface` | Interface definitions | `interface Store`, `type Config` |
+| `type` | Type aliases | `type Result`, `interface Filter` |
+| `variable` | Variable and constant declarations | `const MAX_SIZE`, `let count` |
+| `method` | Class methods | `save()`, `load()`, `find()` |
+
+#### Usage Examples
+
+**Finding a function definition:**
+```bash
+mgrep find-symbol --name "createStore" --type function
+```
+
+**Finding all usages of a function:**
+```bash
+mgrep find-references --symbol "initialSync" --include-definition
+```
+
+**Finding classes in a specific directory:**
+```bash
+mgrep find-symbol --name "Store" --type class --path src/lib
+```
+
+**Partial vs exact matching:**
+```bash
+# Partial match (default) - finds createStore, createTestStore, etc.
+mgrep find-symbol --name "Store" --type function
+
+# Exact match - only finds symbols named "Store"
+mgrep find-symbol --name "Store" --type function --exact
+```
+
+#### Use Cases
+
+- **Refactoring**: Find all usages of a function before renaming or modifying it
+- **Impact Analysis**: Understand which files will be affected by changing a class or interface
+- **Code Navigation**: Quickly jump to where a symbol is defined
+- **Understanding Dependencies**: Trace how symbols are used throughout the codebase
+- **API Exploration**: Discover available functions, classes, and interfaces in a module
+
+#### Language Support
+
+Currently supported languages:
+- **TypeScript** - Full support for all symbol types
+- **JavaScript** - Function, class, and variable detection
+- **Python** - Function, class, and variable detection
+
+More languages will be added in future versions.
+
+#### Example Agent Workflow for Refactoring
+
+```
+# Step1: Find function definition
+mgrep-find-symbol(name="processData", type="function")
+
+# Step 2: Find all usages
+mgrep-find-references(symbol="processData", include_definition=true)
+
+# Step 3: Review usages to understand impact
+mgrep-get-context(path="src/lib/processor.ts", line=45, context_lines=10)
+```
+
+### MCP Prompts
+
+mgrep provides workflow templates (prompts) that guide agents through common development tasks using multi-step tool calls.
+
+#### Available Prompts
+
+| Prompt | Description | Arguments |
+|--------|-------------|------------|
+| codebase-overview | Get comprehensive overview of codebase structure and architecture | (none) |
+| find-implementation | Find how a specific feature is implemented | `feature` (required) |
+| debug-flow | Trace execution flow for debugging functionality | `entrypoint` (required) |
+| find-similar-code | Find code similar to a given snippet | `code` (required) |
+
+#### Usage Examples
+
+**Codebase Overview** (for new projects):
+```bash
+mgrep prompt codebase-overview
+```
+
+**Find Implementation**:
+```bash
+mgrep prompt find-implementation --feature authentication
+```
+
+**Debug Flow**:
+```bash
+mgrep prompt debug-flow --entrypoint processRequest
+```
+
+**Find Similar Code**:
+```bash
+mgrep prompt find-similar-code --code "function processRequest(req) { return res; }"
+```
+
+#### Benefits
+
+- **Guided Workflows**: Agents get step-by-step instructions instead of guessing which tools to call
+- **Better Context**: Multi-step searches build richer context for complex tasks
+- **Faster Onboarding**: New developers can quickly understand codebase structure
+- **Consistency**: Standardized patterns for common development tasks
+- **Reduced Tool Calls**: Agents make fewer redundant calls when using workflows
+
+### Tool Safety (Annotations)
+
+mgrep uses MCP tool annotations to improve agent safety and enable auto-approval for safe operations.
+
+#### Annotation Types
+
+| Annotation | Description | Example |
+|-----------|-------------|---------|
+| `readOnlyHint` | Tool only reads data, no side effects | `mgrep-search`, `mgrep-ask`, `mgrep-stats` |
+| `idempotentHint` | Tool can be called multiple times safely | `mgrep-sync` |
+| `destructiveHint` | Tool modifies or deletes data | (none currently) |
+
+#### Tool Annotations Table
+
+| Tool | readOnly | idempotent | destructive | Notes |
+|------|----------|-------------|-------------|
+| mgrep-search | ✓ | - | - | Read-only semantic search |
+| mgrep-ask | ✓ | - | - | Read-only RAG问答 |
+| mgrep-web-search | ✓ | - | - | Read-only web search |
+| mgrep-sync | - | ✓ | - | Safe to call multiple times |
+| mgrep-get-file | ✓ | - | - | Read-only file retrieval |
+| mgrep-list-files | ✓ | - | - | Read-only file listing |
+| mgrep-get-context | ✓ | - | - | Read-only context retrieval |
+| mgrep-stats | ✓ | - | - | Read-only statistics |
+| mgrep-find-symbol | ✓ | - | - | Read-only symbol search |
+| mgrep-find-references | ✓ | - | - | Read-only reference finding |
+
+#### Agent Benefits
+
+- **Auto-Approval**: Agents like Claude Desktop can auto-approve read-only tools without user confirmation
+- **Safety**: Destructive tools (if any) require explicit user approval
+- **Efficiency**: Safe operations don't need confirmation prompts, speeding up agent workflows
+- **Transparency**: Annotations clearly communicate tool behavior to users and agents
+# Step 1: Find the function definition
+mgrep-find-symbol(name="processData", type="function")
+
+# Step 2: Find all references
+mgrep-find-references(symbol="processData", include_definition=true)
+
+# Step 3: Review usages to understand impact
+mgrep-get-context(path="src/lib/processor.ts", line=45, context_lines=10)
+```
 
 ## File Filtering
 
@@ -222,6 +409,16 @@ ignore:
 - `mgrep sync --include-vendor`: Force indexing of vendor files.
 - `mgrep sync --include-all`: Index everything (disable all ignore categories).
 
+### Intelligent Detection
+
+mgrep includes intelligent detection for certain file patterns:
+
+- **Minified Files**: Detects minified JavaScript/CSS by average line length (>500) or small file size (<10 lines, >10KB).
+- **Generated Markers**: Detects "Code generated", "DO NOT EDIT" in file headers (first 10 lines).
+- **Source Maps**: Detects `sourceMappingURL` or `sourceURL` in last 3 lines of files.
+
+These detections are automatically applied during sync and files are excluded from indexing.
+
 ## Development Notes
 - **Configuration**: Uses `.mgreprc.yaml` or global configuration files. Validated via Zod.
 - **Sync Logic**: Uses SHA-256 hashing to determine file changes, ensuring efficient incremental updates.
@@ -229,6 +426,7 @@ ignore:
 - **Testing**:
     - **Vitest**: For unit and integration tests.
     - **BATS**: For end-to-end CLI behavior validation.
+- **MCP Test Coverage**: Target is 80%+ for `src/commands/watch_mcp.ts`. Run `npm run test:unit -- watch_mcp` to execute tests. See [MCP Testing Guide](docs/MCP_TESTING.md) for manual E2E testing procedures.
 - **Performance**: Large files are chunked into overlapping windows (default 50 lines) to maintain context for embeddings.
 
 ## Known Issues and Limitations

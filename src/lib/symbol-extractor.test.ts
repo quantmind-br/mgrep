@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  type ExtractedSymbol,
   detectLanguage,
+  type ExtractedSymbol,
   extractSymbols,
   filterByType,
   isSymbolReference,

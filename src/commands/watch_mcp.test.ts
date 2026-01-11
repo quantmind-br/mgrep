@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { join, normalize } from "node:path";
 import type {
   CallToolRequest,
   ToolResponse,
 } from "@modelcontextprotocol/sdk/types.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AskResponse,
   ChunkType,
@@ -227,7 +227,7 @@ export function createTextChunk(
 // Import after mocks
 // ============================================================================
 
-import { watchMcp, MGREP_TOOLS } from "./watch_mcp.js";
+import { MGREP_TOOLS, watchMcp } from "./watch_mcp.js";
 
 // ============================================================================
 // Existing Tests

@@ -4,12 +4,12 @@ import * as path from "node:path";
 import { isText } from "istextorbinary";
 import pLimit from "p-limit";
 import { exceedsMaxFileSize, loadConfig, type MgrepConfig } from "./config.js";
+import type { FileSystem } from "./file.js";
 import {
   hasGeneratedMarker,
   hasSourceMapReference,
   isMinified,
 } from "./file-analysis.js";
-import type { FileSystem } from "./file.js";
 import type { FileMetadata, Store } from "./store.js";
 import type { InitialSyncProgress, InitialSyncResult } from "./sync-helpers.js";
 

@@ -5,10 +5,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ErrorCode,
-  ListToolsRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
   ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
+  ListToolsRequestSchema,
   McpError,
+  type Prompt,
+  ReadResourceRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Command } from "commander";
@@ -26,16 +29,16 @@ import type {
   Store,
   TextChunk,
 } from "../lib/store.js";
-import { initialSync } from "../lib/utils.js";
 import {
-  type ExtractedSymbol,
-  type SymbolType,
   detectLanguage,
+  type ExtractedSymbol,
   extractSymbols,
   filterByType,
   isSymbolReference,
+  type SymbolType,
   searchByName,
 } from "../lib/symbol-extractor.js";
+import { initialSync } from "../lib/utils.js";
 import { startWatch } from "./watch.js";
 
 // ============================================================================
@@ -504,6 +507,159 @@ export const MGREP_TOOLS: Tool[] = [
 ];
 
 // ============================================================================
+// Prompt Definitions
+// ============================================================================
+
+export const MGREP_PROMPTS: Prompt[] = [
+  {
+    name: "codebase-overview",
+    description:
+      "Get a comprehensive overview of the codebase structure and architecture",
+  },
+  {
+    name: "find-implementation",
+    description: "Find how a specific feature is implemented in the codebase",
+    arguments: [
+      {
+        name: "feature",
+        description: "The feature or functionality to find",
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "debug-flow",
+    description:
+      "Trace the execution flow for debugging a specific functionality",
+    arguments: [
+      {
+        name: "entrypoint",
+        description: "Starting point for the trace (function, endpoint, etc.)",
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "find-similar-code",
+    description: "Find code similar to a given snippet using semantic search",
+    arguments: [
+      {
+        name: "code",
+        description: "Code snippet to find similar patterns for",
+        required: true,
+      },
+    ],
+  },
+];
+
+function getPromptMessage(
+  name: string,
+  args: Record<string, string> | undefined,
+): string {
+  switch (name) {
+    case "codebase-overview":
+      return `Analyze this codebase using mgrep tools to provide a comprehensive overview:
+
+1. **Get Statistics**: Use mgrep-stats to understand the scope
+2. **Explore Structure**: Use mgrep-list-files to map the directory structure
+3. **Find Architecture**: Use mgrep-search with queries like:
+   - "main entry point configuration"
+   - "core architecture components"
+   - "API routes endpoints handlers"
+4. **Identify Patterns**: Look for common patterns (providers, factories, services)
+
+Provide a summary covering:
+- Project size and scope
+- Main directories and their purposes
+- Key architectural patterns
+- Entry points and configuration files
+- Technology stack indicators`;
+
+    case "find-implementation": {
+      const feature = args?.feature ?? "unknown feature";
+      return `Find the implementation of "${feature}" in this codebase:
+
+1. **Semantic Search**: Use mgrep-search with queries:
+   - "${feature}"
+   - "${feature} implementation"
+   - "${feature} handler logic"
+
+2. **Symbol Search**: Use mgrep-find-symbol to find:
+   - Functions/classes with "${feature}" in the name
+   - Related types and interfaces
+
+3. **Trace References**: Use mgrep-find-references on key symbols found
+
+4. **Get Context**: Use mgrep-get-context to view surrounding code
+
+Provide:
+- Location of main implementation files
+- Key functions/classes involved
+- Data flow through the feature
+- Configuration or dependencies required`;
+    }
+
+    case "debug-flow": {
+      const entrypoint = args?.entrypoint ?? "unknown entrypoint";
+      return `Trace the execution flow starting from "${entrypoint}":
+
+1. **Locate Entrypoint**: Use mgrep-find-symbol to find "${entrypoint}"
+
+2. **Trace Callers**: Use mgrep-find-references to find:
+   - What calls this function/endpoint
+   - The chain of invocations leading here
+
+3. **Find Dependencies**: Use mgrep-search for:
+   - Functions called by this code
+   - Services or modules imported
+   - External API calls
+
+4. **Error Handling**: Search for:
+   - try/catch blocks in the flow
+   - Error types and handlers
+   - Logging statements
+
+Provide:
+- Step-by-step execution flow
+- Key decision points
+- Error handling paths
+- Potential failure points
+- Suggested debugging locations`;
+    }
+
+    case "find-similar-code": {
+      const code = args?.code ?? "";
+      return `Find code similar to this pattern:
+
+\`\`\`
+${code}
+\`\`\`
+
+1. **Semantic Search**: Use mgrep-search with descriptions of:
+   - What this code does
+   - The pattern or technique used
+   - Similar functionality descriptions
+
+2. **Pattern Matching**: Look for:
+   - Similar function signatures
+   - Same libraries/APIs being used
+   - Analogous data transformations
+
+3. **Get Context**: For each match, use mgrep-get-context
+
+Provide:
+- Files with similar code patterns
+- Comparison of approaches
+- Best practices found in similar code
+- Suggestions for consistency`;
+    }
+
+    default:
+      throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${name}`);
+  }
+}
+
+// ============================================================================
 // MCP Server Implementation
 // ============================================================================
 
@@ -568,6 +724,7 @@ export const watchMcp = new Command("mcp")
         capabilities: {
           tools: {},
           resources: {},
+          prompts: {},
         },
       },
     );
@@ -633,6 +790,30 @@ export const watchMcp = new Command("mcp")
             uri,
             mimeType: "text/plain",
             text: content,
+          },
+        ],
+      };
+    });
+
+    // List Prompts
+    server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      return { prompts: MGREP_PROMPTS };
+    });
+
+    // Get Prompt
+    server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+
+      const promptMessage = getPromptMessage(name, args);
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: promptMessage,
+            },
           },
         ],
       };
@@ -1200,9 +1381,7 @@ export const watchMcp = new Command("mcp")
                     path: filePath.replace(root, "."),
                   });
                 }
-              } catch {
-                continue;
-              }
+              } catch {}
             }
 
             return {
@@ -1331,9 +1510,7 @@ export const watchMcp = new Command("mcp")
                     });
                   }
                 }
-              } catch {
-                continue;
-              }
+              } catch {}
             }
 
             return {
