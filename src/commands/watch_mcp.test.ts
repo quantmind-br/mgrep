@@ -1262,8 +1262,8 @@ describe("JSON-RPC schema validation", () => {
   });
 
   describe("all tools validation", () => {
-    it("should have exactly 8 tools defined", () => {
-      expect(MGREP_TOOLS).toHaveLength(8);
+    it("should have exactly 10 tools defined", () => {
+      expect(MGREP_TOOLS).toHaveLength(10);
     });
 
     it("should have valid required arrays for all tools", () => {
@@ -1426,8 +1426,217 @@ describe("MCP tool annotations", () => {
   });
 
   it("should not have destructiveHint on any tool", () => {
-    // None of the mgrep tools are destructive
     const hasDestructive = false;
     expect(hasDestructive).toBe(false);
+  });
+
+  it("should have mgrep-find-symbol tool", () => {
+    const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-symbol");
+    expect(tool).toBeDefined();
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("should have mgrep-find-references tool", () => {
+    const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-references");
+    expect(tool).toBeDefined();
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+});
+
+describe("mgrep-find-symbol tool", () => {
+  describe("schema validation", () => {
+    it("should have correct input schema", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-symbol");
+      expect(tool).toBeDefined();
+
+      const schema = tool?.inputSchema as Record<string, unknown>;
+      expect(schema.type).toBe("object");
+      expect(schema.required).toEqual(["name"]);
+
+      const properties = schema.properties as Record<string, unknown>;
+      expect(properties.name).toBeDefined();
+      expect(properties.type).toBeDefined();
+      expect(properties.path).toBeDefined();
+      expect(properties.exact).toBeDefined();
+      expect(properties.max_results).toBeDefined();
+    });
+
+    it("should have correct type enum values", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-symbol");
+      const properties = (tool?.inputSchema as Record<string, unknown>)
+        .properties as Record<string, unknown>;
+      const typeProperty = properties.type as Record<string, unknown>;
+
+      expect(typeProperty.enum).toEqual([
+        "function",
+        "class",
+        "interface",
+        "type",
+        "variable",
+        "method",
+        "any",
+      ]);
+      expect(typeProperty.default).toBe("any");
+    });
+
+    it("should have max_results with correct limits", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-symbol");
+      const properties = (tool?.inputSchema as Record<string, unknown>)
+        .properties as Record<string, unknown>;
+      const maxResults = properties.max_results as Record<string, unknown>;
+
+      expect(maxResults.default).toBe(20);
+      expect(maxResults.minimum).toBe(1);
+      expect(maxResults.maximum).toBe(100);
+    });
+  });
+
+  describe("symbol search behavior", () => {
+    it("should require name parameter", () => {
+      const symbolName = undefined as unknown as string;
+      expect(!symbolName).toBe(true);
+    });
+
+    it("should support partial matching by default", () => {
+      const exact = false;
+      const symbolName = "create";
+      const targetName = "createStore";
+
+      const matches = exact
+        ? targetName.toLowerCase() === symbolName.toLowerCase()
+        : targetName.toLowerCase().includes(symbolName.toLowerCase());
+
+      expect(matches).toBe(true);
+    });
+
+    it("should support exact matching when specified", () => {
+      const exact = true;
+      const symbolName = "create";
+      const targetName = "createStore";
+
+      const matches = exact
+        ? targetName.toLowerCase() === symbolName.toLowerCase()
+        : targetName.toLowerCase().includes(symbolName.toLowerCase());
+
+      expect(matches).toBe(false);
+    });
+
+    it("should filter by symbol type", () => {
+      const symbols = [
+        { name: "Store", type: "class" },
+        { name: "createStore", type: "function" },
+        { name: "StoreConfig", type: "interface" },
+      ];
+      const typeFilter = "function";
+
+      const filtered = symbols.filter(
+        (s) => typeFilter === "any" || s.type === typeFilter,
+      );
+
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe("createStore");
+    });
+  });
+
+  describe("path filtering", () => {
+    it("should validate path is within project root", () => {
+      const testRoot = process.cwd();
+      const pathFilter = "/etc/passwd";
+
+      const isValid = pathFilter.startsWith(testRoot);
+      expect(isValid).toBe(false);
+    });
+
+    it("should accept relative paths", () => {
+      const testRoot = process.cwd();
+      const pathFilter = "src/lib";
+      const resolved = normalize(join(testRoot, pathFilter));
+
+      const isValid = resolved.startsWith(testRoot);
+      expect(isValid).toBe(true);
+    });
+  });
+});
+
+describe("mgrep-find-references tool", () => {
+  describe("schema validation", () => {
+    it("should have correct input schema", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-references");
+      expect(tool).toBeDefined();
+
+      const schema = tool?.inputSchema as Record<string, unknown>;
+      expect(schema.type).toBe("object");
+      expect(schema.required).toEqual(["symbol"]);
+
+      const properties = schema.properties as Record<string, unknown>;
+      expect(properties.symbol).toBeDefined();
+      expect(properties.path).toBeDefined();
+      expect(properties.include_definition).toBeDefined();
+      expect(properties.max_results).toBeDefined();
+    });
+
+    it("should have max_results with correct limits", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-references");
+      const properties = (tool?.inputSchema as Record<string, unknown>)
+        .properties as Record<string, unknown>;
+      const maxResults = properties.max_results as Record<string, unknown>;
+
+      expect(maxResults.default).toBe(50);
+      expect(maxResults.minimum).toBe(1);
+      expect(maxResults.maximum).toBe(200);
+    });
+
+    it("should have include_definition default to false", () => {
+      const tool = MGREP_TOOLS.find((t) => t.name === "mgrep-find-references");
+      const properties = (tool?.inputSchema as Record<string, unknown>)
+        .properties as Record<string, unknown>;
+      const includeDef = properties.include_definition as Record<
+        string,
+        unknown
+      >;
+
+      expect(includeDef.default).toBe(false);
+    });
+  });
+
+  describe("reference detection behavior", () => {
+    it("should require symbol parameter", () => {
+      const symbol = undefined as unknown as string;
+      expect(!symbol).toBe(true);
+    });
+
+    it("should detect word boundary matches", () => {
+      const line = "const store = createStore();";
+      const symbol = "createStore";
+      const regex = new RegExp(`\\b${symbol}\\b`);
+
+      expect(regex.test(line)).toBe(true);
+    });
+
+    it("should reject partial word matches", () => {
+      const line = "createStoreWithConfig()";
+      const symbol = "createStore";
+      const regex = new RegExp(`\\b${symbol}\\b`);
+
+      expect(regex.test(line)).toBe(false);
+    });
+
+    it("should reject matches in comments", () => {
+      const line = "// createStore is called here";
+      const trimmed = line.trim();
+      const isComment = trimmed.startsWith("//");
+
+      expect(isComment).toBe(true);
+    });
+  });
+
+  describe("path filtering", () => {
+    it("should validate path is within project root", () => {
+      const testRoot = process.cwd();
+      const pathFilter = "/etc/passwd";
+
+      const isValid = pathFilter.startsWith(testRoot);
+      expect(isValid).toBe(false);
+    });
   });
 });

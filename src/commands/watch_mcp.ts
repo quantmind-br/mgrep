@@ -27,6 +27,15 @@ import type {
   TextChunk,
 } from "../lib/store.js";
 import { initialSync } from "../lib/utils.js";
+import {
+  type ExtractedSymbol,
+  type SymbolType,
+  detectLanguage,
+  extractSymbols,
+  filterByType,
+  isSymbolReference,
+  searchByName,
+} from "../lib/symbol-extractor.js";
 import { startWatch } from "./watch.js";
 
 // ============================================================================
@@ -408,6 +417,88 @@ export const MGREP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {},
+    },
+  },
+  {
+    name: "mgrep-find-symbol",
+    description:
+      "Find symbol definitions (functions, classes, interfaces, types) in the codebase. Searches through indexed files to locate where symbols are defined.",
+    annotations: {
+      readOnlyHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Symbol name to search for (supports partial matching)",
+        },
+        type: {
+          type: "string",
+          enum: [
+            "function",
+            "class",
+            "interface",
+            "type",
+            "variable",
+            "method",
+            "any",
+          ],
+          default: "any",
+          description: "Filter by symbol type",
+        },
+        path: {
+          type: "string",
+          description: "Filter to specific directory (e.g., 'src/lib')",
+        },
+        exact: {
+          type: "boolean",
+          default: false,
+          description: "Require exact name match (default: partial match)",
+        },
+        max_results: {
+          type: "number",
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+          description: "Maximum number of results to return",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "mgrep-find-references",
+    description:
+      "Find all usages/references of a symbol across the codebase. Useful for understanding where functions, classes, or variables are used.",
+    annotations: {
+      readOnlyHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: {
+          type: "string",
+          description: "Symbol name to find references for",
+        },
+        path: {
+          type: "string",
+          description: "Optional: Limit search to specific directory",
+        },
+        include_definition: {
+          type: "boolean",
+          default: false,
+          description: "Include the definition location in results",
+        },
+        max_results: {
+          type: "number",
+          default: 50,
+          minimum: 1,
+          maximum: 200,
+          description: "Maximum number of references to return",
+        },
+      },
+      required: ["symbol"],
     },
   },
 ];
@@ -1040,6 +1131,225 @@ export const watchMcp = new Command("mcp")
                       created_at: stats.created_at,
                       updated_at: stats.updated_at,
                       root_path: root,
+                    },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+
+          // ================================================================
+          // mgrep-find-symbol: Find symbol definitions
+          // ================================================================
+          case "mgrep-find-symbol": {
+            const symbolName = args?.name as string;
+            const symbolType = (args?.type as SymbolType | "any") ?? "any";
+            const pathFilter = args?.path as string | undefined;
+            const exact = (args?.exact as boolean) ?? false;
+            const maxResults = Math.min(
+              (args?.max_results as number) ?? 20,
+              100,
+            );
+
+            if (!symbolName) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "name parameter is required",
+              );
+            }
+
+            const searchPath = pathFilter
+              ? pathFilter.startsWith("/")
+                ? pathFilter
+                : normalize(join(root, pathFilter))
+              : root;
+
+            if (!searchPath.startsWith(root)) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "Path must be within project root",
+              );
+            }
+
+            const foundSymbols: Array<ExtractedSymbol & { path: string }> = [];
+
+            for await (const file of store.listFiles(options.store, {
+              pathPrefix: searchPath,
+            })) {
+              if (foundSymbols.length >= maxResults) break;
+
+              const filePath = (file.metadata as FileMetadata)?.path;
+              if (!filePath) continue;
+
+              const language = detectLanguage(filePath);
+              if (language === "unknown") continue;
+
+              try {
+                const content = await fs.promises.readFile(filePath, "utf-8");
+                let symbols = extractSymbols(content, language);
+
+                symbols = filterByType(symbols, symbolType);
+                symbols = searchByName(symbols, symbolName, exact);
+
+                for (const sym of symbols) {
+                  if (foundSymbols.length >= maxResults) break;
+                  foundSymbols.push({
+                    ...sym,
+                    path: filePath.replace(root, "."),
+                  });
+                }
+              } catch {
+                continue;
+              }
+            }
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      symbols: foundSymbols.map((s) => ({
+                        name: s.name,
+                        type: s.type,
+                        path: s.path,
+                        line: s.line,
+                        exported: s.exported,
+                        ...(s.signature && { signature: s.signature }),
+                        ...(s.containerName && { container: s.containerName }),
+                      })),
+                      count: foundSymbols.length,
+                      query: {
+                        name: symbolName,
+                        type: symbolType,
+                        exact,
+                        ...(pathFilter && { path: pathFilter }),
+                      },
+                    },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+
+          // ================================================================
+          // mgrep-find-references: Find symbol usages
+          // ================================================================
+          case "mgrep-find-references": {
+            const symbol = args?.symbol as string;
+            const pathFilter = args?.path as string | undefined;
+            const includeDefinition =
+              (args?.include_definition as boolean) ?? false;
+            const maxResults = Math.min(
+              (args?.max_results as number) ?? 50,
+              200,
+            );
+
+            if (!symbol) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "symbol parameter is required",
+              );
+            }
+
+            const searchPath = pathFilter
+              ? pathFilter.startsWith("/")
+                ? pathFilter
+                : normalize(join(root, pathFilter))
+              : root;
+
+            if (!searchPath.startsWith(root)) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "Path must be within project root",
+              );
+            }
+
+            const references: Array<{
+              path: string;
+              line: number;
+              context: string;
+              type: "definition" | "usage";
+            }> = [];
+
+            let definition:
+              | {
+                  path: string;
+                  line: number;
+                  context: string;
+                }
+              | undefined;
+
+            for await (const file of store.listFiles(options.store, {
+              pathPrefix: searchPath,
+            })) {
+              if (references.length >= maxResults) break;
+
+              const filePath = (file.metadata as FileMetadata)?.path;
+              if (!filePath) continue;
+
+              const language = detectLanguage(filePath);
+              if (language === "unknown") continue;
+
+              try {
+                const content = await fs.promises.readFile(filePath, "utf-8");
+                const lines = content.split("\n");
+
+                const symbols = extractSymbols(content, language);
+                const symbolDef = symbols.find(
+                  (s) => s.name.toLowerCase() === symbol.toLowerCase(),
+                );
+
+                if (symbolDef && includeDefinition && !definition) {
+                  definition = {
+                    path: filePath.replace(root, "."),
+                    line: symbolDef.line,
+                    context: lines[symbolDef.line - 1]?.trim() ?? "",
+                  };
+                }
+
+                for (let i = 0; i < lines.length; i++) {
+                  if (references.length >= maxResults) break;
+
+                  const line = lines[i];
+                  const lineNumber = i + 1;
+
+                  if (symbolDef && lineNumber === symbolDef.line) {
+                    continue;
+                  }
+
+                  if (isSymbolReference(line, symbol, language)) {
+                    references.push({
+                      path: filePath.replace(root, "."),
+                      line: lineNumber,
+                      context: line.trim(),
+                      type: "usage",
+                    });
+                  }
+                }
+              } catch {
+                continue;
+              }
+            }
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      references,
+                      ...(definition && { definition }),
+                      count: references.length + (definition ? 1 : 0),
+                      query: {
+                        symbol,
+                        include_definition: includeDefinition,
+                        ...(pathFilter && { path: pathFilter }),
+                      },
                     },
                     null,
                     2,
