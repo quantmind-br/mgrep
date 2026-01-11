@@ -6,6 +6,8 @@ import {
   CallToolRequestSchema,
   ErrorCode,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -179,6 +181,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-search",
     description:
       "Semantic search over indexed local files. Finds code and documentation based on meaning and intent, not just keywords. Results include file paths, line numbers, and relevance scores.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -217,6 +222,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-ask",
     description:
       "Ask questions about the codebase and get AI-generated answers with citations. Uses RAG (Retrieval-Augmented Generation) to provide accurate, source-backed responses.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -250,6 +258,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-web-search",
     description:
       "Search the web using Tavily AI search engine. Returns relevant web content with URLs and snippets. Requires MGREP_TAVILY_API_KEY or tavily.apiKey in config.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -277,6 +288,11 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-sync",
     description:
       "Synchronize local files with the vector store. Indexes new files, updates changed files, and removes deleted files. Use before searching if files have changed.",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: true,
+      destructiveHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -293,6 +309,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-get-file",
     description:
       "Retrieve file content with optional line range. Returns truncated content for large files. Supports both absolute and relative paths within the project.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -318,6 +337,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-list-files",
     description:
       "List indexed files with optional path filtering and pagination. Useful for exploring the indexed codebase structure.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -350,6 +372,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-get-context",
     description:
       "Get expanded context around a specific line in a file. Useful for viewing code around search results or citations.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -377,6 +402,9 @@ const MGREP_TOOLS: Tool[] = [
     name: "mgrep-stats",
     description:
       "Get statistics about the indexed store, including file count and store metadata.",
+    annotations: {
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {},
@@ -448,6 +476,7 @@ export const watchMcp = new Command("mcp")
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       },
     );
@@ -460,6 +489,62 @@ export const watchMcp = new Command("mcp")
     // List available tools
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       return { tools: MGREP_TOOLS };
+    });
+
+    // List Resources
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      const resources = [];
+
+      for await (const file of store.listFiles(options.store, {})) {
+        const metadata = file.metadata as FileMetadata | undefined;
+        const path = metadata?.path ?? file.external_id ?? "unknown";
+
+        resources.push({
+          uri: `mgrep://file/${path}`,
+          name: path,
+          mimeType: "text/plain",
+          description: `Indexed file: ${path}`,
+        });
+      }
+
+      return { resources };
+    });
+
+    // Read Resource
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const uri = request.params.uri;
+      const path = uri.replace("mgrep://file/", "");
+
+      // Resolve and validate path
+      const resolved = path.startsWith("/")
+        ? path
+        : normalize(join(root, path));
+
+      if (!resolved.startsWith(root)) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "Path must be within project root",
+        );
+      }
+
+      // Check if file exists and is within root
+      try {
+        await fs.promises.access(resolved);
+      } catch {
+        throw new McpError(ErrorCode.InvalidParams, `File not found: ${path}`);
+      }
+
+      const content = await fs.promises.readFile(resolved, "utf-8");
+
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "text/plain",
+            text: content,
+          },
+        ],
+      };
     });
 
     // Handle tool calls
