@@ -6,4 +6,4 @@ coverage/
 
 # Auto Claude data directory
 .auto-claude/
-shotgun-prompt*.md
+"shotgun-prompt*.md"
