@@ -176,7 +176,7 @@ async function performWebSearch(
 // Tool Definitions
 // ============================================================================
 
-const MGREP_TOOLS: Tool[] = [
+export const MGREP_TOOLS: Tool[] = [
   {
     name: "mgrep-search",
     description:
