@@ -1,25 +1,6 @@
 /**
- * TestMCPClient - In-memory MCP client for integration testing
- *
- * This module provides a test harness for the mgrep MCP server that enables
- * programmatic testing without stdio transport. It uses the MCP SDK's
- * InMemoryTransport to connect a Client directly to a Server in the same process.
- *
- * @example
- * ```typescript
- * const client = new TestMCPClient({ rootPath: '/tmp/test-project' });
- * await client.connect();
- *
- * // Seed test data
- * await client.seedData([
- *   { path: 'src/index.ts', content: 'export function main() {}' }
- * ]);
- *
- * // Call tools
- * const result = await client.callTool('mgrep-search', { query: 'main function' });
- *
- * await client.disconnect();
- * ```
+ * TestMCPClient - In-memory MCP client for integration testing.
+ * Provides a test harness using InMemoryTransport for programmatic MCP testing.
  */
 
 import * as fs from "node:fs";
@@ -41,70 +22,30 @@ import {
   type Prompt,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { TestStore, type FileMetadata, type Store } from "./store.js";
+import { TestStore, type FileMetadata } from "./store.js";
+import type { SymbolType } from "./symbol-extractor.js";
 import { MGREP_TOOLS, MGREP_PROMPTS } from "../commands/watch_mcp.js";
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Options for creating a TestMCPClient instance.
- */
 export interface TestMCPClientOptions {
-  /**
-   * Root path for file operations. Defaults to a temporary directory.
-   */
   rootPath?: string;
-
-  /**
-   * Path for the TestStore JSON file. Defaults to a temp file.
-   */
   testStorePath?: string;
-
-  /**
-   * Store ID to use. Defaults to 'test-store'.
-   */
   storeId?: string;
 }
 
-/**
- * File data for seeding the test store.
- */
 export interface TestFile {
-  /**
-   * Relative path from root (e.g., 'src/index.ts')
-   */
   path: string;
-
-  /**
-   * File content
-   */
   content: string;
 }
 
-/**
- * Result from calling an MCP tool.
- */
 export interface ToolResult {
-  /**
-   * Content returned by the tool
-   */
   content: Array<{
     type: string;
     text?: string;
     [key: string]: unknown;
   }>;
-
-  /**
-   * Whether the tool call resulted in an error
-   */
   isError?: boolean;
 }
 
-/**
- * Resource returned by listResources.
- */
 export interface Resource {
   uri: string;
   name: string;
@@ -112,9 +53,6 @@ export interface Resource {
   description?: string;
 }
 
-/**
- * Content returned by readResource.
- */
 export interface ResourceContent {
   uri: string;
   mimeType?: string;
@@ -122,9 +60,6 @@ export interface ResourceContent {
   blob?: string;
 }
 
-/**
- * Prompt message returned by getPrompt.
- */
 export interface PromptMessage {
   role: "user" | "assistant";
   content: {
@@ -133,22 +68,6 @@ export interface PromptMessage {
   };
 }
 
-// ============================================================================
-// TestMCPClient Class
-// ============================================================================
-
-/**
- * In-memory MCP client for testing mgrep tools without stdio transport.
- *
- * This class creates a complete MCP client-server setup using InMemoryTransport,
- * allowing tests to call tools programmatically and verify responses.
- *
- * Features:
- * - Uses TestStore for data isolation between tests
- * - Supports all 11 mgrep tools
- * - Provides helpers for seeding and clearing test data
- * - No external dependencies (Qdrant, API keys)
- */
 export class TestMCPClient {
   private client: Client | null = null;
   private server: Server | null = null;
@@ -158,11 +77,6 @@ export class TestMCPClient {
   private storeId: string;
   private connected = false;
 
-  /**
-   * Creates a new TestMCPClient instance.
-   *
-   * @param options - Configuration options
-   */
   constructor(options: TestMCPClientOptions = {}) {
     this.rootPath =
       options.rootPath ?? path.join(os.tmpdir(), `mgrep-test-${Date.now()}`);
@@ -172,29 +86,16 @@ export class TestMCPClient {
     this.storeId = options.storeId ?? "test-store";
   }
 
-  /**
-   * Connects the client to the server.
-   *
-   * This method:
-   * 1. Creates a TestStore instance
-   * 2. Creates the MCP Server with tool handlers
-   * 3. Creates the MCP Client
-   * 4. Links them via InMemoryTransport
-   *
-   * @throws Error if already connected
-   */
   async connect(): Promise<void> {
     if (this.connected) {
       throw new Error("TestMCPClient is already connected");
     }
 
-    // Ensure root directory exists
     await fs.promises.mkdir(this.rootPath, { recursive: true });
 
-    // Create store
-    this.store = new TestStore(this.testStorePath);
+    process.env.MGREP_TEST_STORE_PATH = this.testStorePath;
+    this.store = new TestStore();
 
-    // Ensure the store exists
     try {
       await this.store.retrieve(this.storeId);
     } catch {
@@ -204,7 +105,6 @@ export class TestMCPClient {
       });
     }
 
-    // Create server
     this.server = new Server(
       { name: "mgrep-test", version: "0.0.1" },
       {
@@ -216,18 +116,15 @@ export class TestMCPClient {
       },
     );
 
-    // Register handlers
     this.registerToolHandlers();
     this.registerResourceHandlers();
     this.registerPromptHandlers();
 
-    // Create client
     this.client = new Client(
       { name: "test-client", version: "1.0.0" },
       { capabilities: {} },
     );
 
-    // Connect via InMemoryTransport
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
     await Promise.all([
@@ -238,9 +135,6 @@ export class TestMCPClient {
     this.connected = true;
   }
 
-  /**
-   * Disconnects the client and cleans up resources.
-   */
   async disconnect(): Promise<void> {
     if (!this.connected) {
       return;
@@ -264,14 +158,6 @@ export class TestMCPClient {
     this.connected = false;
   }
 
-  /**
-   * Calls an MCP tool by name.
-   *
-   * @param name - Tool name (e.g., 'mgrep-search')
-   * @param args - Tool arguments
-   * @returns Tool result
-   * @throws Error if not connected or tool fails
-   */
   async callTool(
     name: string,
     args: Record<string, unknown> = {},
@@ -282,62 +168,34 @@ export class TestMCPClient {
 
     return {
       content: result.content as ToolResult["content"],
-      isError: result.isError,
+      isError: typeof result.isError === "boolean" ? result.isError : false,
     };
   }
 
-  /**
-   * Lists all available tools.
-   *
-   * @returns Array of tool definitions
-   */
   async listTools(): Promise<Tool[]> {
     this.ensureConnected();
     const result = await this.client!.listTools();
     return result.tools;
   }
 
-  /**
-   * Lists all available resources.
-   *
-   * @returns Array of resource definitions
-   */
   async listResources(): Promise<Resource[]> {
     this.ensureConnected();
     const result = await this.client!.listResources();
     return result.resources as Resource[];
   }
 
-  /**
-   * Reads a resource by URI.
-   *
-   * @param uri - Resource URI (e.g., 'mgrep://file/src/index.ts')
-   * @returns Resource content
-   */
   async readResource(uri: string): Promise<ResourceContent> {
     this.ensureConnected();
     const result = await this.client!.readResource({ uri });
     return result.contents[0] as ResourceContent;
   }
 
-  /**
-   * Lists all available prompts.
-   *
-   * @returns Array of prompt definitions
-   */
   async listPrompts(): Promise<Prompt[]> {
     this.ensureConnected();
     const result = await this.client!.listPrompts();
     return result.prompts;
   }
 
-  /**
-   * Gets a prompt by name with arguments.
-   *
-   * @param name - Prompt name
-   * @param args - Prompt arguments
-   * @returns Prompt messages
-   */
   async getPrompt(
     name: string,
     args: Record<string, string> = {},
@@ -347,15 +205,6 @@ export class TestMCPClient {
     return result.messages as PromptMessage[];
   }
 
-  /**
-   * Seeds test data into the store.
-   *
-   * This method:
-   * 1. Creates files on disk in the root directory
-   * 2. Uploads them to the TestStore
-   *
-   * @param files - Array of test files to seed
-   */
   async seedData(files: TestFile[]): Promise<void> {
     this.ensureConnected();
 
@@ -363,50 +212,35 @@ export class TestMCPClient {
       const fullPath = path.join(this.rootPath, file.path);
       const dir = path.dirname(fullPath);
 
-      // Ensure directory exists
       await fs.promises.mkdir(dir, { recursive: true });
-
-      // Write file to disk
       await fs.promises.writeFile(fullPath, file.content, "utf-8");
-
-      // Upload to store using the seedTestData helper
-      await this.store!.seedTestData(fullPath, file.content);
     }
+
+    await this.store!.seedTestData(
+      files.map((f) => ({
+        path: path.join(this.rootPath, f.path),
+        content: f.content,
+      })),
+    );
   }
 
-  /**
-   * Clears all test data from the store.
-   */
   async clearData(): Promise<void> {
     this.ensureConnected();
     await this.store!.clearTestData();
   }
 
-  /**
-   * Gets the root path for this test client.
-   */
   getRootPath(): string {
     return this.rootPath;
   }
 
-  /**
-   * Gets the store ID.
-   */
   getStoreId(): string {
     return this.storeId;
   }
 
-  /**
-   * Gets direct access to the TestStore (for advanced testing).
-   */
   getStore(): TestStore {
     this.ensureConnected();
     return this.store!;
   }
-
-  // ============================================================================
-  // Private Methods
-  // ============================================================================
 
   private ensureConnected(): void {
     if (!this.connected || !this.client || !this.store) {
@@ -419,12 +253,10 @@ export class TestMCPClient {
     const root = this.rootPath;
     const storeId = this.storeId;
 
-    // List tools
     this.server!.setRequestHandler(ListToolsRequestSchema, async () => {
       return { tools: MGREP_TOOLS };
     });
 
-    // Handle tool calls
     this.server!.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
@@ -585,7 +417,7 @@ export class TestMCPClient {
 
           case "mgrep-find-symbol": {
             const symbolName = args?.name as string;
-            const symbolType = args?.type as string | undefined;
+            const symbolType = args?.type as SymbolType | "any" | undefined;
             const pathFilter = args?.path as string | undefined;
             const exact = (args?.exact as boolean) ?? false;
             const maxResults = (args?.max_results as number) ?? 20;
@@ -645,7 +477,6 @@ export class TestMCPClient {
           }
 
           case "mgrep-sync": {
-            // For testing, sync is a no-op since we seed data directly
             return {
               content: [
                 {
@@ -679,7 +510,6 @@ export class TestMCPClient {
           }
 
           case "mgrep-web-search": {
-            // Web search is not available in test mode
             return {
               content: [
                 {
@@ -732,7 +562,6 @@ export class TestMCPClient {
     const root = this.rootPath;
     const storeId = this.storeId;
 
-    // List resources
     this.server!.setRequestHandler(ListResourcesRequestSchema, async () => {
       const resources: Resource[] = [];
 
@@ -751,7 +580,6 @@ export class TestMCPClient {
       return { resources };
     });
 
-    // Read resource
     this.server!.setRequestHandler(
       ReadResourceRequestSchema,
       async (request) => {
@@ -791,12 +619,10 @@ export class TestMCPClient {
   }
 
   private registerPromptHandlers(): void {
-    // List prompts
     this.server!.setRequestHandler(ListPromptsRequestSchema, async () => {
       return { prompts: MGREP_PROMPTS };
     });
 
-    // Get prompt
     this.server!.setRequestHandler(GetPromptRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
@@ -805,7 +631,6 @@ export class TestMCPClient {
         throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${name}`);
       }
 
-      // Generate a simple prompt message for testing
       const message = `Prompt: ${name}\nArguments: ${JSON.stringify(args ?? {})}`;
 
       return {
@@ -825,7 +650,7 @@ export class TestMCPClient {
       score: number;
       generated_metadata?: { start_line?: number; num_lines?: number };
     }>,
-    includeContent: boolean,
+    _includeContent: boolean,
   ): string {
     if (chunks.length === 0) {
       return "No results found.";
@@ -860,7 +685,6 @@ export class TestMCPClient {
       return `<context>\n${items.join("\n")}\n</context>`;
     }
 
-    // Default to markdown
     const items = chunks.map((chunk) => {
       const metadata = chunk.metadata as FileMetadata | undefined;
       return `## ${metadata?.path ?? "unknown"}\n\`\`\`\n${(chunk as { text?: string }).text ?? ""}\n\`\`\``;
