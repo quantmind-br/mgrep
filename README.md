@@ -160,6 +160,87 @@ C4Container
 - **Web Search**: **Tavily AI** for real-time web result retrieval.
 - **MCP**: Integrates as a tool provider for any **Model Context Protocol** compatible client.
 
+## CLI Commands
+
+### Search Command
+```bash
+mgrep search <query> [path] [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-m, --max-count <n>` | Maximum results to return | 10 |
+| `-c, --content` | Show file content in results | false |
+| `-a, --answer` | Generate RAG answer with citations | false |
+| `-s, --sync` | Sync files before searching | false |
+| `-d, --dry-run` | Preview sync without changes | false |
+| `--no-rerank` | Disable result reranking | enabled |
+| `-w, --web` | Include web search via Tavily | false |
+| `--fzf` | Interactive selection with fzf | false |
+| `--auto-watch` | Auto-spawn watcher after sync | true |
+
+**Interactive Selection with fzf:**
+```bash
+mgrep search "authentication flow" --fzf
+# Results piped to fzf for interactive selection
+# Selected result opens in $EDITOR at the matched line
+```
+
+### Context Command
+```bash
+mgrep context <query> [options]
+```
+
+Export search results as LLM-optimized context blocks.
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--format <type>` | Output format: xml, markdown, text | xml |
+| `--max-tokens <n>` | Maximum token budget | unlimited |
+| `--max-results <n>` | Maximum results to include | 10 |
+| `-c, --clipboard` | Copy to clipboard | false |
+| `-s, --sync` | Sync files before search | false |
+
+### Watcher Command
+```bash
+mgrep watcher <subcommand>
+```
+
+Manage background file watchers for continuous synchronization.
+
+| Subcommand | Description |
+|------------|-------------|
+| `start` | Start background watcher for current directory |
+| `stop` | Stop running background watcher |
+| `status` | Show watcher status (PID, uptime, directory) |
+
+**Example workflow:**
+```bash
+mgrep watcher start          # Start watching in background
+mgrep watcher status         # Check if running
+mgrep search "api handler"   # Search without manual sync
+mgrep watcher stop           # Stop when done
+```
+
+### Watch Command
+```bash
+mgrep watch [options]
+```
+
+Foreground file watcher with live sync output.
+
+| Option | Description |
+|--------|-------------|
+| `-d, --dry-run` | Preview changes without syncing |
+| `--max-file-size <bytes>` | Maximum file size to process |
+
+### Sync Command
+```bash
+mgrep sync [options]
+```
+
+One-time synchronization of files with vector store.
+
 ## API Documentation
 `mgrep` exposes its functionality primarily through the **Model Context Protocol (MCP)**.
 
