@@ -53,6 +53,25 @@ The MCP server exposes 8 tools for AI agent integration:
 | `mgrep-get-context` | Get expanded context around a line |
 | `mgrep-stats` | Get store statistics |
 
+## MCP Development
+
+When modifying MCP tools or adding new functionality:
+
+1. **Add/update tests** in the appropriate file:
+   - `src/commands/watch_mcp.test.ts` - Tool schemas and mocked handlers
+   - `src/commands/watch_mcp.helper.test.ts` - Helper/formatter functions
+   - `src/commands/watch_mcp.integration.test.ts` - Full integration tests
+
+2. **Run tests before committing**:
+   ```bash
+   npm run test:unit -- watch_mcp
+   ```
+
+3. **Key files**:
+   - `src/commands/watch_mcp.ts` - MCP server implementation
+   - `src/lib/test-mcp-client.ts` - TestMCPClient for integration tests
+   - `src/lib/store.ts` - TestStore for in-memory testing
+
 ## Code Style
 - **Language**: TypeScript (Strict typing).
 - **Format/Lint**: Biome.

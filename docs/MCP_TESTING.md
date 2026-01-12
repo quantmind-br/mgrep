@@ -1,8 +1,50 @@
 # MCP Testing Guide
 
-This guide provides manual E2E testing procedures for mgrep's Model Context Protocol (MCP) server using the [MCP Inspector](https://modelcontextprotocol.io/inspector/).
+This guide covers testing procedures for mgrep's Model Context Protocol (MCP) server.
 
-## Prerequisites
+## Automated Testing (Recommended)
+
+Most MCP functionality is covered by automated tests. **Run these first before manual testing:**
+
+```bash
+# Run all MCP tests (232 tests)
+npm run test:unit -- watch_mcp
+
+# Run with coverage report
+npm run test:coverage -- src/commands/watch_mcp
+```
+
+### Test Files
+
+| File | Tests | Description |
+|------|-------|-------------|
+| `watch_mcp.test.ts` | 142 | Unit tests for tool schemas, constants, mocked handlers |
+| `watch_mcp.helper.test.ts` | 21 | Helper function tests (formatters, extractors) |
+| `watch_mcp.integration.test.ts` | 69 | Integration tests via TestMCPClient |
+
+### What's Covered by Automated Tests
+
+- **All 11 Tools**: search, ask, sync, get-file, list-files, get-context, stats, find-symbol, find-references, web-search, context
+- **Resources API**: listResources, readResource, URI validation
+- **Prompts API**: All 4 prompts with argument validation
+- **Error Handling**: Invalid inputs, missing parameters, path traversal
+- **Schema Validation**: Tool input schemas, required fields
+
+### When to Use Manual Testing
+
+Use MCP Inspector for:
+- Visual verification of output formatting
+- Complex multi-step agent workflows
+- Real integration with Claude Desktop or other MCP clients
+- Debugging transport/protocol issues
+
+---
+
+## Manual E2E Testing
+
+This section provides manual testing procedures using the [MCP Inspector](https://modelcontextprotocol.io/inspector/).
+
+### Prerequisites
 
 1. **Install MCP Inspector**:
    ```bash

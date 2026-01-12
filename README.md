@@ -507,11 +507,41 @@ These detections are automatically applied during sync and files are excluded fr
 - **Configuration**: Uses `.mgreprc.yaml` or global configuration files. Validated via Zod.
 - **Sync Logic**: Uses SHA-256 hashing to determine file changes, ensuring efficient incremental updates.
 - **Concurrency**: Bulk operations (like initial sync) are managed via configurable concurrency limits (default: 20).
-- **Testing**:
-    - **Vitest**: For unit and integration tests.
-    - **BATS**: For end-to-end CLI behavior validation.
-- **MCP Test Coverage**: Target is 80%+ for `src/commands/watch_mcp.ts`. Run `npm run test:unit -- watch_mcp` to execute tests. See [MCP Testing Guide](docs/MCP_TESTING.md) for manual E2E testing procedures.
 - **Performance**: Large files are chunked into overlapping windows (default 50 lines) to maintain context for embeddings.
+
+## Testing
+
+### Quick Start
+```bash
+npm run test           # Run all tests (unit + E2E)
+npm run test:unit      # Run unit tests only (Vitest)
+npm run test:coverage  # Run tests with coverage report
+```
+
+### MCP Server Testing
+The MCP server has comprehensive automated test coverage:
+
+```bash
+# Run all MCP tests (232 tests total)
+npm run test:unit -- watch_mcp
+
+# Run with coverage
+npm run test:coverage -- src/commands/watch_mcp
+```
+
+**Test Files:**
+- `src/commands/watch_mcp.test.ts` - Unit tests (142 tests) for tool schemas, constants
+- `src/commands/watch_mcp.helper.test.ts` - Helper function tests (21 tests)
+- `src/commands/watch_mcp.integration.test.ts` - Integration tests (69 tests)
+
+**Coverage includes:**
+- All 11 tool handlers (search, ask, sync, get-file, list-files, etc.)
+- Resources API (file listing and content retrieval)
+- Prompts API (4 workflow templates)
+- Error handling and validation
+- Security tests (path traversal prevention)
+
+For manual E2E testing with MCP Inspector, see [MCP Testing Guide](docs/MCP_TESTING.md).
 
 ## Known Issues and Limitations
 - **File Size**: Files exceeding the configured `maxFileSize` (default 10MB) are skipped.
@@ -520,6 +550,8 @@ These detections are automatically applied during sync and files are excluded fr
 - **Store Support**: While the architecture is modular, `Qdrant` is currently the only non-test storage implementation.
 
 ## Additional Documentation
+- [Testing Guide](docs/TESTING.md)
+- [MCP Testing Guide](docs/MCP_TESTING.md)
 - [Architecture Analysis](.ai/docs/structure_analysis.md)
 - [API Deep Dive](.ai/docs/api_analysis.md)
 - [Data Flow Details](.ai/docs/data_flow_analysis.md)
