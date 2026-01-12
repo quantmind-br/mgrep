@@ -7,16 +7,15 @@ import { Command } from "commander";
 const CONFIG_DIR = path.join(os.homedir(), ".config", "mgrep");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 
+type ProviderType = "openai" | "google" | "anthropic" | "ollama";
+
 type ProviderDefaults = {
   embeddingModel: string;
-  embeddingProvider: "openai" | "google" | "anthropic" | "ollama";
+  embeddingProvider: ProviderType;
   llmModel: string;
 };
 
-const PROVIDER_DEFAULTS: Record<
-  ProviderDefaults["embeddingProvider"],
-  ProviderDefaults
-> = {
+const PROVIDER_DEFAULTS: Record<ProviderType, ProviderDefaults> = {
   openai: {
     embeddingModel: "text-embedding-3-small",
     embeddingProvider: "openai",
@@ -38,6 +37,24 @@ const PROVIDER_DEFAULTS: Record<
     llmModel: "llama3.2",
   },
 };
+
+function validateApiKeyFormat(provider: ProviderType, apiKey: string): boolean {
+  const trimmed = apiKey.trim();
+  if (!trimmed) return false;
+
+  switch (provider) {
+    case "openai":
+      return trimmed.startsWith("sk-");
+    case "anthropic":
+      return trimmed.startsWith("sk-ant-");
+    case "google":
+      return trimmed.length > 10;
+    case "ollama":
+      return true;
+    default:
+      return false;
+  }
+}
 
 export const initCommand = new Command("init")
   .description("Initialize mgrep configuration interactively")
@@ -83,4 +100,40 @@ export const initCommand = new Command("init")
         `LLM: ${defaults.llmModel}`,
       "Defaults",
     );
+
+    if (provider === "anthropic") {
+      p.note(
+        "Anthropic does not provide embeddings. OpenAI will be used for embeddings.",
+        "Note",
+      );
+    }
+
+    if (provider === "ollama") {
+      const baseUrl = await p.text({
+        message: "Ollama base URL:",
+        initialValue: "http://localhost:11434/v1",
+      });
+
+      if (p.isCancel(baseUrl)) {
+        p.cancel("Configuration cancelled.");
+        return;
+      }
+
+      p.note(`Using ${baseUrl.trim()}`, "Ollama");
+      return;
+    }
+
+    const apiKey = await p.password({
+      message: `Enter your ${provider} API key:`,
+      validate(value) {
+        return validateApiKeyFormat(provider, value)
+          ? undefined
+          : "API key format looks invalid.";
+      },
+    });
+
+    if (p.isCancel(apiKey)) {
+      p.cancel("Configuration cancelled.");
+      return;
+    }
   });
