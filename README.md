@@ -9,6 +9,7 @@ The primary purpose of `mgrep` is to provide a "semantic grep" experience. Unlik
 ### Key Features and Capabilities
 - **Semantic Search**: Find code and documentation based on meaning rather than literal string matches.
 - **RAG-Powered "Ask"**: Perform Retrieval-Augmented Generation to get AI-generated answers with direct citations from your codebase.
+- **Context Export**: Export search results as LLM-optimized context blocks in XML, Markdown, or plain text format with clipboard support.
 - **Multi-Provider Support**: Pluggable architecture supporting OpenAI, Anthropic, Google Gemini, and Ollama for both embeddings and LLM responses.
 - **Real-time Synchronization**: A `watch` mode that monitors filesystem events and incrementally updates the vector store.
 - **MCP Integration**: Built-in Model Context Protocol server that allows AI agents (like Claude Desktop) to use `mgrep` as a tool.
@@ -175,6 +176,7 @@ C4Container
 | `mgrep-stats` | Get store statistics. | (none) |
 | `mgrep-find-symbol` | Find symbol definitions (functions, classes, interfaces, types). | `name`, `type`, `path`, `exact`, `max_results` |
 | `mgrep-find-references` | Find all usages/references of a symbol. | `symbol`, `path`, `include_definition`, `max_results` |
+| `mgrep-context` | Export search results as LLM-optimized context block. | `query`, `format`, `max_tokens`, `max_results`, `path` |
 
 ### MCP Resources
 
@@ -348,6 +350,7 @@ mgrep uses MCP tool annotations to improve agent safety and enable auto-approval
 | mgrep-stats | ✓ | - | - | Read-only statistics |
 | mgrep-find-symbol | ✓ | - | - | Read-only symbol search |
 | mgrep-find-references | ✓ | - | - | Read-only reference finding |
+| mgrep-context | ✓ | - | - | Read-only context export |
 
 #### Agent Benefits
 

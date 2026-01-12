@@ -21,6 +21,10 @@ import {
   createStore,
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
+import {
+  ContextFormatter,
+  type ContextFormat,
+} from "../lib/formatters/index.js";
 import type {
   AskResponse,
   ChunkType,
@@ -502,6 +506,45 @@ export const MGREP_TOOLS: Tool[] = [
         },
       },
       required: ["symbol"],
+    },
+  },
+  {
+    name: "mgrep-context",
+    description:
+      "Export semantic search results as LLM-optimized context block. Returns formatted code snippets suitable for pasting into web LLMs or other tools.",
+    annotations: {
+      readOnlyHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Semantic search query",
+        },
+        format: {
+          type: "string",
+          enum: ["xml", "markdown", "plain"],
+          default: "xml",
+          description: "Output format for context",
+        },
+        max_tokens: {
+          type: "number",
+          description: "Maximum tokens in output (optional)",
+        },
+        max_results: {
+          type: "number",
+          default: 10,
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum number of results to include",
+        },
+        path: {
+          type: "string",
+          description: "Filter to specific path prefix",
+        },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -1533,6 +1576,82 @@ export const watchMcp = new Command("mcp")
                   ),
                 },
               ],
+            };
+          }
+
+          // ================================================================
+          // mgrep-context: Export context for LLMs
+          // ================================================================
+          case "mgrep-context": {
+            const query = args?.query as string;
+            const format = (args?.format as ContextFormat) ?? "xml";
+            const maxTokens = args?.max_tokens as number | undefined;
+            const maxResults = (args?.max_results as number) ?? 10;
+            const pathFilter = args?.path as string | undefined;
+
+            if (!query) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                "Query parameter is required",
+              );
+            }
+
+            const searchPath = pathFilter
+              ? pathFilter.startsWith("/")
+                ? pathFilter
+                : normalize(join(root, pathFilter))
+              : root;
+
+            const filters = {
+              all: [
+                {
+                  key: "path",
+                  operator: "starts_with" as const,
+                  value: searchPath,
+                },
+              ],
+            };
+
+            const results = await store.search(
+              [options.store],
+              query,
+              maxResults,
+              { rerank: true },
+              filters,
+            );
+
+            if (results.data.length === 0) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: "No matching code found for query.",
+                  },
+                ],
+              };
+            }
+
+            const formatter = new ContextFormatter({
+              format,
+              maxTokens,
+              query,
+            });
+
+            const formatted = formatter.formatResults(results.data);
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: formatted.content,
+                },
+              ],
+              _meta: {
+                files: formatted.fileCount,
+                tokens: formatted.tokenEstimate,
+                truncated: formatted.truncated,
+                chunks: formatted.chunkCount,
+              },
             };
           }
 

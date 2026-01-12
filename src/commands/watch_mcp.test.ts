@@ -1262,8 +1262,8 @@ describe("JSON-RPC schema validation", () => {
   });
 
   describe("all tools validation", () => {
-    it("should have exactly 10 tools defined", () => {
-      expect(MGREP_TOOLS).toHaveLength(10);
+    it("should have exactly 11 tools defined", () => {
+      expect(MGREP_TOOLS).toHaveLength(11);
     });
 
     it("should have valid required arrays for all tools", () => {

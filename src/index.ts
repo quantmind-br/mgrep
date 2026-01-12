@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { program } from "commander";
 import { checkIgnoreCommand } from "./commands/check-ignore.js";
 import { configCommand } from "./commands/config.js";
+import { context } from "./commands/context.js";
 import { search } from "./commands/search.js";
 import { syncCommand } from "./commands/sync.js";
 import { watch } from "./commands/watch.js";
@@ -38,6 +39,7 @@ program
   );
 
 program.addCommand(search, { isDefault: true });
+program.addCommand(context);
 program.addCommand(syncCommand);
 program.addCommand(watch);
 program.addCommand(configCommand);
