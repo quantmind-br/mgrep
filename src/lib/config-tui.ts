@@ -393,6 +393,7 @@ async function editField<T extends string | number | boolean>(
       validate: options.validate,
     });
     if (p.isCancel(result)) return { value: undefined, cancelled: true };
+    if (result === undefined) return { value: undefined, cancelled: false };
     const trimmed = result.trim();
     return { value: (trimmed || undefined) as T | undefined, cancelled: false };
   }
@@ -405,6 +406,7 @@ async function editField<T extends string | number | boolean>(
   });
 
   if (p.isCancel(result)) return { value: undefined, cancelled: true };
+  if (result === undefined) return { value: undefined, cancelled: false };
 
   const trimmed = result.trim();
   if (!trimmed) return { value: undefined, cancelled: false };
