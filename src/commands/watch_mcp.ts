@@ -49,7 +49,7 @@ import { startWatch } from "./watch.js";
 // Result Formatting Functions
 // ============================================================================
 
-function isWebResult(
+export function isWebResult(
   chunk: ChunkType,
 ): chunk is TextChunk & { filename: string } {
   return (
@@ -60,7 +60,7 @@ function isWebResult(
   );
 }
 
-function formatChunkForMcp(
+export function formatChunkForMcp(
   chunk: ChunkType,
   includeContent: boolean,
   pwd: string,
@@ -97,7 +97,7 @@ function formatChunkForMcp(
   return `.${path}${lineRange} (${score}% match)${content}`;
 }
 
-function formatSearchResultsForMcp(
+export function formatSearchResultsForMcp(
   response: SearchResponse,
   includeContent: boolean,
 ): string {
@@ -114,7 +114,9 @@ function formatSearchResultsForMcp(
   return `Found ${response.data.length} result(s):\n\n${results.join("\n\n")}`;
 }
 
-function extractSources(response: AskResponse): { [key: number]: ChunkType } {
+export function extractSources(response: AskResponse): {
+  [key: number]: ChunkType;
+} {
   const sources: { [key: number]: ChunkType } = {};
   const answer = response.answer;
   const citeTags = answer.match(/<cite i="(\d+(?:-\d+)?)"/g) ?? [];
@@ -148,7 +150,7 @@ function extractSources(response: AskResponse): { [key: number]: ChunkType } {
   return sources;
 }
 
-function formatAskResultsForMcp(response: AskResponse): string {
+export function formatAskResultsForMcp(response: AskResponse): string {
   const pwd = process.cwd();
   const sources = extractSources(response);
   const sourceEntries = Object.entries(sources).map(
@@ -595,7 +597,7 @@ export const MGREP_PROMPTS: Prompt[] = [
   },
 ];
 
-function getPromptMessage(
+export function getPromptMessage(
   name: string,
   args: Record<string, string> | undefined,
 ): string {
