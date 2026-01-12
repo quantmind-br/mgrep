@@ -4,15 +4,20 @@ import * as path from "node:path";
 import YAML from "yaml";
 import { z } from "zod";
 
-const LOCAL_CONFIG_FILES = [".mgreprc.yaml", ".mgreprc.yml"] as const;
-const GLOBAL_CONFIG_DIR = ".config/mgrep";
-const GLOBAL_CONFIG_FILES = ["config.yaml", "config.yml"] as const;
-const ENV_PREFIX = "MGREP_";
-const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+export const LOCAL_CONFIG_FILES = [".mgreprc.yaml", ".mgreprc.yml"] as const;
+export const GLOBAL_CONFIG_DIR = ".config/mgrep";
+export const GLOBAL_CONFIG_FILES = ["config.yaml", "config.yml"] as const;
+export const ENV_PREFIX = "MGREP_";
+export const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-const ProviderTypeSchema = z.enum(["openai", "google", "anthropic", "ollama"]);
+export const ProviderTypeSchema = z.enum([
+  "openai",
+  "google",
+  "anthropic",
+  "ollama",
+]);
 
-const EmbeddingsConfigSchema = z.object({
+export const EmbeddingsConfigSchema = z.object({
   provider: ProviderTypeSchema.default("openai"),
   model: z.string().default("text-embedding-3-small"),
   baseUrl: z.string().optional(),
@@ -23,7 +28,7 @@ const EmbeddingsConfigSchema = z.object({
   maxRetries: z.number().int().min(0).default(3),
 });
 
-const LLMConfigSchema = z.object({
+export const LLMConfigSchema = z.object({
   provider: ProviderTypeSchema.default("openai"),
   model: z.string().default("gpt-4o-mini"),
   baseUrl: z.string().optional(),
@@ -34,17 +39,17 @@ const LLMConfigSchema = z.object({
   maxRetries: z.number().int().min(0).default(3),
 });
 
-const QdrantConfigSchema = z.object({
+export const QdrantConfigSchema = z.object({
   url: z.string().default("http://localhost:6333"),
   apiKey: z.string().optional(),
   collectionPrefix: z.string().default("mgrep_"),
 });
 
-const SyncConfigSchema = z.object({
+export const SyncConfigSchema = z.object({
   concurrency: z.number().int().positive().default(20),
 });
 
-const TavilyConfigSchema = z.object({
+export const TavilyConfigSchema = z.object({
   apiKey: z.string().optional(),
   maxResults: z.number().int().positive().default(10),
   searchDepth: z.enum(["basic", "advanced"]).default("basic"),
@@ -52,7 +57,7 @@ const TavilyConfigSchema = z.object({
   includeRawContent: z.boolean().default(false),
 });
 
-const IgnoreConfigSchema = z
+export const IgnoreConfigSchema = z
   .object({
     categories: z
       .object({
@@ -68,7 +73,7 @@ const IgnoreConfigSchema = z
   })
   .default({});
 
-const ConfigSchema = z.object({
+export const ConfigSchema = z.object({
   maxFileSize: z.number().positive().optional(),
   qdrant: QdrantConfigSchema.default({}),
   embeddings: EmbeddingsConfigSchema.default({}),
@@ -129,7 +134,7 @@ export interface MgrepConfig {
   ignore: IgnoreConfig;
 }
 
-const DEFAULT_CONFIG: MgrepConfig = {
+export const DEFAULT_CONFIG: MgrepConfig = {
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
   qdrant: {
     url: "http://localhost:6333",
