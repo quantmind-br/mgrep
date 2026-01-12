@@ -543,6 +543,24 @@ npm run test:coverage -- src/commands/watch_mcp
 
 For manual E2E testing with MCP Inspector, see [MCP Testing Guide](docs/MCP_TESTING.md).
 
+## Accessibility
+
+### NO_COLOR Support
+
+mgrep respects the [NO_COLOR](https://no-color.org/) standard. Set the environment variable to disable all colored output:
+
+```bash
+export NO_COLOR=1
+mgrep search "query"
+```
+
+This affects:
+- All CLI output colors (via chalk v5+)
+- Spinner animations (via ora v5+)
+- Progress indicators
+
+To force colors even in non-TTY environments, use `FORCE_COLOR=1`.
+
 ## Known Issues and Limitations
 - **File Size**: Files exceeding the configured `maxFileSize` (default 10MB) are skipped.
 - **Binary Files**: Only text files are indexed; binary files are automatically detected and ignored.

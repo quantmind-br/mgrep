@@ -412,6 +412,24 @@ export const search: Command = new CommanderCommand("search")
           return;
         }
 
+        if (results.data.length === 0) {
+          try {
+            const stats = await store.getStats(options.store);
+            if (stats.chunk_count === 0) {
+              console.log("No files indexed. Run 'mgrep sync' first.");
+              return;
+            }
+          } catch {}
+          console.log(`No matches found for "${pattern}".`);
+          console.log("\nTry:");
+          console.log("  - Broadening your search query");
+          if (exec_path) {
+            console.log("  - Removing path filters");
+          }
+          console.log("  - Running 'mgrep stats' to check indexed files");
+          return;
+        }
+
         response = formatSearchResponse(results, options.content);
       } else {
         const results = await store.ask(

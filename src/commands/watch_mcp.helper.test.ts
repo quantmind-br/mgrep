@@ -118,10 +118,24 @@ describe("Helper Functions", () => {
   });
 
   describe("formatSearchResultsForMcp", () => {
-    it("should format empty results", () => {
+    it("should format empty results with suggestions", () => {
       const response: SearchResponse = { data: [] };
       const result = formatSearchResultsForMcp(response, false);
-      expect(result).toBe("No results found.");
+      expect(result).toContain("No matches found.");
+      expect(result).toContain("Try:");
+      expect(result).toContain("Broaden your search query");
+    });
+
+    it("should format empty results with store empty message", () => {
+      const response: SearchResponse = { data: [] };
+      const result = formatSearchResultsForMcp(
+        response,
+        false,
+        "test query",
+        true,
+      );
+      expect(result).toContain("No files indexed");
+      expect(result).toContain("mgrep-sync");
     });
 
     it("should format multiple results with numbering", () => {

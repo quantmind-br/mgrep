@@ -100,10 +100,20 @@ export function formatChunkForMcp(
 export function formatSearchResultsForMcp(
   response: SearchResponse,
   includeContent: boolean,
+  query?: string,
+  storeEmpty?: boolean,
 ): string {
   const pwd = process.cwd();
   if (response.data.length === 0) {
-    return "No results found.";
+    if (storeEmpty) {
+      return "No files indexed. Run mgrep-sync first to index your codebase.";
+    }
+    const suggestions = [
+      "- Broaden your search query",
+      "- Remove path filters if any",
+      "- Check indexed files with mgrep-stats",
+    ];
+    return `No matches found${query ? ` for "${query}"` : ""}.\n\nTry:\n${suggestions.join("\n")}`;
   }
 
   const results = response.data.map(
@@ -213,7 +223,7 @@ export const MGREP_TOOLS: Tool[] = [
         path: {
           type: "string",
           description:
-            "Optional path filter to search within a specific directory (e.g., 'src/lib')",
+            "Optional path filter to search within a specific directory. Examples: 'src', 'src/lib', 'tests/unit'",
         },
         max_results: {
           type: "number",
@@ -253,7 +263,7 @@ export const MGREP_TOOLS: Tool[] = [
         path: {
           type: "string",
           description:
-            "Optional path filter to limit the search scope (e.g., 'src/commands')",
+            "Optional path filter to limit the search scope. Examples: 'src', 'src/commands', 'lib/utils'",
         },
         max_results: {
           type: "number",
@@ -335,7 +345,8 @@ export const MGREP_TOOLS: Tool[] = [
       properties: {
         path: {
           type: "string",
-          description: "Absolute or relative path to the file",
+          description:
+            "Absolute or relative path to the file. Examples: 'src/index.ts', './lib/utils.ts', '/home/user/project/file.js'",
         },
         start_line: {
           type: "number",
@@ -363,7 +374,8 @@ export const MGREP_TOOLS: Tool[] = [
       properties: {
         path_prefix: {
           type: "string",
-          description: "Filter by path prefix (e.g., 'src/lib')",
+          description:
+            "Filter by path prefix. Examples: 'src', 'src/lib', 'tests'",
         },
         limit: {
           type: "number",
@@ -398,7 +410,8 @@ export const MGREP_TOOLS: Tool[] = [
       properties: {
         path: {
           type: "string",
-          description: "Path to the file",
+          description:
+            "Path to the file. Examples: 'src/index.ts', 'lib/utils.ts'",
         },
         line: {
           type: "number",
@@ -458,7 +471,8 @@ export const MGREP_TOOLS: Tool[] = [
         },
         path: {
           type: "string",
-          description: "Filter to specific directory (e.g., 'src/lib')",
+          description:
+            "Filter to specific directory. Examples: 'src', 'src/lib', 'lib/providers'",
         },
         exact: {
           type: "boolean",
@@ -492,7 +506,8 @@ export const MGREP_TOOLS: Tool[] = [
         },
         path: {
           type: "string",
-          description: "Optional: Limit search to specific directory",
+          description:
+            "Optional: Limit search to specific directory. Examples: 'src', 'src/lib', 'tests'",
         },
         include_definition: {
           type: "boolean",
@@ -543,7 +558,8 @@ export const MGREP_TOOLS: Tool[] = [
         },
         path: {
           type: "string",
-          description: "Filter to specific path prefix",
+          description:
+            "Filter to specific path prefix. Examples: 'src', 'src/lib', 'lib/providers'",
         },
       },
       required: ["query"],
@@ -911,11 +927,24 @@ export const watchMcp = new Command("mcp")
               filters,
             );
 
+            let storeEmpty = false;
+            if (results.data.length === 0) {
+              try {
+                const stats = await store.getStats(options.store);
+                storeEmpty = stats.file_count === 0;
+              } catch {}
+            }
+
             return {
               content: [
                 {
                   type: "text",
-                  text: formatSearchResultsForMcp(results, includeContent),
+                  text: formatSearchResultsForMcp(
+                    results,
+                    includeContent,
+                    query,
+                    storeEmpty,
+                  ),
                 },
               ],
             };
@@ -1623,11 +1652,22 @@ export const watchMcp = new Command("mcp")
             );
 
             if (results.data.length === 0) {
+              let message = `No matching code found for "${query}".`;
+              try {
+                const stats = await store.getStats(options.store);
+                if (stats.file_count === 0) {
+                  message =
+                    "No files indexed. Run mgrep-sync first to index your codebase.";
+                } else {
+                  message +=
+                    "\n\nTry broadening your query or removing path filters.";
+                }
+              } catch {}
               return {
                 content: [
                   {
                     type: "text",
-                    text: "No matching code found for query.",
+                    text: message,
                   },
                 ],
               };
