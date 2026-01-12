@@ -56,6 +56,17 @@ vi.mock("../lib/sync-helpers.js", () => ({
   formatDryRunSummary: vi.fn(() => "Dry run summary"),
 }));
 
+vi.mock("../lib/watcher-manager.js", () => ({
+  WatcherManager: {
+    isWatcherRunning: vi.fn(() => Promise.resolve(true)),
+    startWatcher: vi.fn(() => Promise.resolve(12345)),
+    stopWatcher: vi.fn(() => Promise.resolve(true)),
+    getWatcherStatus: vi.fn(() =>
+      Promise.resolve({ running: false, pid: undefined }),
+    ),
+  },
+}));
+
 import * as context from "../lib/context.js";
 import { search } from "./search.js";
 

@@ -11,6 +11,7 @@ import {
   createStore,
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
+import { FzfPipe, type SearchResultForFzf } from "../lib/fzf-pipe.js";
 import type { WebSearchClient } from "../lib/providers/web/index.js";
 import type {
   AskResponse,
@@ -25,6 +26,7 @@ import {
   formatDryRunSummary,
 } from "../lib/sync-helpers.js";
 import { initialSync } from "../lib/utils.js";
+import { WatcherManager } from "../lib/watcher-manager.js";
 
 function extractSources(response: AskResponse): { [key: number]: ChunkType } {
   const sources: { [key: number]: ChunkType } = {};
@@ -261,6 +263,16 @@ export const search: Command = new CommanderCommand("search")
     parseBooleanEnv(process.env.MGREP_WEB, false),
   )
   .option(
+    "--fzf",
+    "Pipe results through fzf for interactive selection",
+    parseBooleanEnv(process.env.MGREP_FZF, false),
+  )
+  .option(
+    "--auto-watch",
+    "Auto-spawn background watcher after sync (default: true)",
+    parseBooleanEnv(process.env.MGREP_AUTO_WATCH, true),
+  )
+  .option(
     "--max-file-size <bytes>",
     "Maximum file size in bytes to upload",
     (value) => {
@@ -285,6 +297,8 @@ export const search: Command = new CommanderCommand("search")
       dryRun: boolean;
       rerank: boolean;
       web: boolean;
+      fzf: boolean;
+      autoWatch: boolean;
       maxFileSize?: number;
     } = cmd.optsWithGlobals();
     if (exec_path?.startsWith("--")) {
@@ -310,6 +324,21 @@ export const search: Command = new CommanderCommand("search")
         );
         if (shouldReturn) {
           return;
+        }
+
+        if (options.autoWatch && !options.dryRun) {
+          const isRunning = await WatcherManager.isWatcherRunning(
+            options.store,
+          );
+          if (!isRunning) {
+            try {
+              const pid = await WatcherManager.startWatcher(
+                options.store,
+                root,
+              );
+              console.error(`Background watcher started (PID: ${pid})`);
+            } catch {}
+          }
         }
       }
 
@@ -355,12 +384,32 @@ export const search: Command = new CommanderCommand("search")
           filters,
         );
 
-        // Combine local and web results
         if (webResults.length > 0) {
           const combinedData = [...results.data, ...webResults];
-          // Sort by score and take top maxCount
           combinedData.sort((a, b) => b.score - a.score);
           results.data = combinedData.slice(0, maxCount);
+        }
+
+        if (options.fzf) {
+          const fzfPipe = new FzfPipe();
+          const fzfResults: SearchResultForFzf[] = results.data
+            .filter((chunk): chunk is TextChunk => chunk.type === "text")
+            .map((chunk) => ({
+              path: (chunk.metadata as FileMetadata)?.path ?? "",
+              startLine: (chunk.generated_metadata?.start_line ?? 0) + 1,
+              endLine:
+                (chunk.generated_metadata?.start_line ?? 0) +
+                1 +
+                (chunk.generated_metadata?.num_lines ?? 0),
+              score: chunk.score,
+              preview: chunk.text.slice(0, 200),
+            }));
+
+          const selected = await fzfPipe.selectWithFzf(fzfResults);
+          if (selected?.selected) {
+            await fzfPipe.openInEditor(selected.filePath, selected.lineNumber);
+          }
+          return;
         }
 
         response = formatSearchResponse(results, options.content);
@@ -373,7 +422,6 @@ export const search: Command = new CommanderCommand("search")
           filters,
         );
 
-        // Add web results to sources for RAG
         if (webResults.length > 0) {
           results.sources = [...results.sources, ...webResults];
         }

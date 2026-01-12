@@ -10,6 +10,7 @@ import { search } from "./commands/search.js";
 import { syncCommand } from "./commands/sync.js";
 import { watch } from "./commands/watch.js";
 import { watchMcp } from "./commands/watch_mcp.js";
+import { watcher } from "./commands/watcher.js";
 import {
   installClaudeCode,
   uninstallClaudeCode,
@@ -53,5 +54,6 @@ program.addCommand(uninstallDroid);
 program.addCommand(installOpencode);
 program.addCommand(uninstallOpencode);
 program.addCommand(watchMcp);
+program.addCommand(watcher);
 
 program.parse();
