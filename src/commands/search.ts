@@ -12,6 +12,7 @@ import {
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
 import { FzfPipe, type SearchResultForFzf } from "../lib/fzf-pipe.js";
+import { nativeSelect } from "../lib/native-select.js";
 import type { WebSearchClient } from "../lib/providers/web/index.js";
 import type {
   AskResponse,
@@ -405,7 +406,22 @@ export const search: Command = new CommanderCommand("search")
               preview: chunk.text.slice(0, 200),
             }));
 
-          const selected = await fzfPipe.selectWithFzf(fzfResults);
+          const fzfAvailable = await FzfPipe.isAvailable();
+          if (fzfAvailable) {
+            const selected = await fzfPipe.selectWithFzf(fzfResults);
+            if (selected?.selected) {
+              await fzfPipe.openInEditor(
+                selected.filePath,
+                selected.lineNumber,
+              );
+            }
+            return;
+          }
+
+          console.error(
+            "fzf not found. Falling back to built-in selector (top 20 results).",
+          );
+          const selected = await nativeSelect(fzfResults, 20);
           if (selected?.selected) {
             await fzfPipe.openInEditor(selected.filePath, selected.lineNumber);
           }

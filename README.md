@@ -176,7 +176,7 @@ mgrep search <query> [path] [options]
 | `-d, --dry-run` | Preview sync without changes | false |
 | `--no-rerank` | Disable result reranking | enabled |
 | `-w, --web` | Include web search via Tavily | false |
-| `--fzf` | Interactive selection with fzf | false |
+| `--fzf` | Interactive selection with fzf (optional - falls back to built-in selector) | false |
 | `--auto-watch` | Auto-spawn watcher after sync | true |
 
 **Interactive Selection with fzf:**
@@ -185,6 +185,10 @@ mgrep search "authentication flow" --fzf
 # Results piped to fzf for interactive selection
 # Selected result opens in $EDITOR at the matched line
 ```
+
+**Note:** If fzf is not installed, mgrep will use a built-in selector with the top 20 results.
+For the best experience with fuzzy search and file preview, install fzf:
+https://github.com/junegunn/fzf#installation
 
 ### Context Command
 ```bash
@@ -240,6 +244,31 @@ mgrep sync [options]
 ```
 
 One-time synchronization of files with vector store.
+
+### Init Command
+```bash
+mgrep init [options]
+```
+
+Initialize mgrep configuration interactively. Creates a config file at `~/.config/mgrep/config.yaml`.
+
+| Option | Description |
+|--------|-------------|
+| `--reconfigure` | Overwrite existing configuration |
+
+**Example:**
+```bash
+mgrep init
+# Follow prompts to select provider (OpenAI, Anthropic, Google, Ollama)
+# Enter API key when prompted
+# Config file is created automatically
+```
+
+The init command guides you through:
+1. Selecting an embeddings/LLM provider
+2. Entering your API key (with format validation)
+3. Configuring Ollama base URL (if using Ollama)
+4. Creating the configuration file
 
 ## API Documentation
 `mgrep` exposes its functionality primarily through the **Model Context Protocol (MCP)**.

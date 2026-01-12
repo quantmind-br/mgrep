@@ -51,7 +51,20 @@ export function createIndexingSpinner(
   root: string,
   label = "Indexing files...",
 ): IndexingSpinner {
-  const spinner = ora({ text: label }).start();
+  const disableColor = Boolean(process.env.NO_COLOR);
+  const spinner = ora({ text: label, isEnabled: !disableColor }).start();
+
+  if (disableColor) {
+    spinner.succeed = (text?: string) =>
+      spinner.stopAndPersist({ symbol: "✔", text });
+    spinner.fail = (text?: string) =>
+      spinner.stopAndPersist({ symbol: "✖", text });
+    spinner.warn = (text?: string) =>
+      spinner.stopAndPersist({ symbol: "⚠", text });
+    spinner.info = (text?: string) =>
+      spinner.stopAndPersist({ symbol: "ℹ", text });
+  }
+
   return {
     spinner,
     onProgress(info) {

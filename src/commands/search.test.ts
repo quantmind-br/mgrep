@@ -56,6 +56,30 @@ vi.mock("../lib/sync-helpers.js", () => ({
   formatDryRunSummary: vi.fn(() => "Dry run summary"),
 }));
 
+vi.mock("../lib/fzf-pipe.js", () => ({
+  FzfPipe: class {
+    static async isAvailable() {
+      return false;
+    }
+
+    async selectWithFzf() {
+      return null;
+    }
+
+    async openInEditor() {}
+  },
+}));
+
+vi.mock("../lib/native-select.js", () => ({
+  nativeSelect: vi.fn(() =>
+    Promise.resolve({
+      selected: true,
+      filePath: "/tmp/test.ts",
+      lineNumber: 1,
+    }),
+  ),
+}));
+
 vi.mock("../lib/watcher-manager.js", () => ({
   WatcherManager: {
     isWatcherRunning: vi.fn(() => Promise.resolve(true)),
@@ -160,6 +184,38 @@ describe("search command", () => {
       expect(consoleSpy).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
+    });
+
+    it("falls back to native selector when fzf is unavailable", async () => {
+      const results = {
+        data: [
+          {
+            type: "text" as const,
+            text: "result",
+            score: 0.9,
+            metadata: { path: "/test.ts" },
+            chunk_index: 0,
+            generated_metadata: { start_line: 1, num_lines: 1 },
+          },
+        ],
+      };
+
+      mockStore.search.mockResolvedValue(results);
+
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const program = createTestProgram();
+
+      await program.parseAsync(["node", "test", "search", "test", "--fzf"]);
+
+      const { nativeSelect } = await import("../lib/native-select.js");
+      expect(vi.mocked(nativeSelect)).toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        "fzf not found. Falling back to built-in selector (top 20 results).",
+      );
+
+      consoleError.mockRestore();
     });
 
     it("should perform ask with answer mode", async () => {
