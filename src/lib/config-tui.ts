@@ -19,6 +19,8 @@ import {
   writeConfigFile,
 } from "./config-writer.js";
 
+const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
+
 export interface TUIState {
   target: ConfigTarget;
   cwd: string;
@@ -446,13 +448,25 @@ async function editEmbeddings(state: TUIState): Promise<void> {
   if (modelResult.cancelled) return;
   const model = modelResult.value;
 
+  const ollamaBaseUrl =
+    provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : undefined;
+  const currentBaseUrl =
+    current.baseUrl ?? (provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : "");
+
+  if (provider === "ollama" && !current.baseUrl) {
+    p.note(`Using default Ollama URL: ${OLLAMA_DEFAULT_BASE_URL}`, "Ollama");
+  }
+
   const baseUrlResult = await editField<string>(
     "Base URL",
-    current.baseUrl,
-    "",
+    currentBaseUrl || undefined,
+    ollamaBaseUrl ?? "",
     {
       type: "text",
-      placeholder: "Leave empty for default",
+      placeholder:
+        provider === "ollama"
+          ? OLLAMA_DEFAULT_BASE_URL
+          : "Leave empty for default",
     },
   );
   if (baseUrlResult.cancelled) return;
@@ -534,9 +548,13 @@ async function editEmbeddings(state: TUIState): Promise<void> {
   const maxRetries = maxRetriesResult.value;
 
   const updated: Partial<EmbeddingsConfig> = {};
-  if (provider !== defaults.provider) updated.provider = provider;
+  updated.provider = provider;
   if (model && model !== defaults.model) updated.model = model;
-  if (baseUrl) updated.baseUrl = baseUrl;
+  if (baseUrl) {
+    updated.baseUrl = baseUrl;
+  } else if (provider === "ollama") {
+    updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
+  }
   if (apiKey) updated.apiKey = apiKey;
   if (dimensions && dimensions > 0) updated.dimensions = dimensions;
   if (batchSize && batchSize !== defaults.batchSize)
@@ -582,13 +600,25 @@ async function editLLM(state: TUIState): Promise<void> {
   if (modelResult.cancelled) return;
   const model = modelResult.value;
 
+  const ollamaBaseUrl =
+    provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : undefined;
+  const currentBaseUrl =
+    current.baseUrl ?? (provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : "");
+
+  if (provider === "ollama" && !current.baseUrl) {
+    p.note(`Using default Ollama URL: ${OLLAMA_DEFAULT_BASE_URL}`, "Ollama");
+  }
+
   const baseUrlResult = await editField<string>(
     "Base URL",
-    current.baseUrl,
-    "",
+    currentBaseUrl || undefined,
+    ollamaBaseUrl ?? "",
     {
       type: "text",
-      placeholder: "Leave empty for default",
+      placeholder:
+        provider === "ollama"
+          ? OLLAMA_DEFAULT_BASE_URL
+          : "Leave empty for default",
     },
   );
   if (baseUrlResult.cancelled) return;
@@ -669,9 +699,13 @@ async function editLLM(state: TUIState): Promise<void> {
   const maxRetries = maxRetriesResult.value;
 
   const updated: Partial<LLMConfig> = {};
-  if (provider !== defaults.provider) updated.provider = provider;
+  updated.provider = provider;
   if (model && model !== defaults.model) updated.model = model;
-  if (baseUrl) updated.baseUrl = baseUrl;
+  if (baseUrl) {
+    updated.baseUrl = baseUrl;
+  } else if (provider === "ollama") {
+    updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
+  }
   if (apiKey) updated.apiKey = apiKey;
   if (temperature !== undefined && temperature !== defaults.temperature)
     updated.temperature = temperature;
