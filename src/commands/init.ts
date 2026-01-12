@@ -72,6 +72,11 @@ type InitRuntimeState = {
   ollamaBaseUrl?: string;
 };
 
+type ApiKeyRequirement = {
+  label: string;
+  envVar: string;
+};
+
 const DEFAULT_QDRANT_URL = "http://localhost:6333";
 const DEFAULT_COLLECTION_PREFIX = "mgrep_";
 const DEFAULT_BATCH_SIZE = 100;
@@ -83,6 +88,21 @@ const DEFAULT_LLM_TIMEOUT_MS = 60000;
 const DEFAULT_LLM_MAX_RETRIES = 3;
 const DEFAULT_SYNC_CONCURRENCY = 20;
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const API_KEY_REQUIREMENTS: Record<ProviderType, ApiKeyRequirement[]> = {
+  openai: [{ label: "OpenAI", envVar: "OPENAI_API_KEY" }],
+  google: [{ label: "Google", envVar: "GOOGLE_API_KEY" }],
+  anthropic: [
+    { label: "Anthropic", envVar: "ANTHROPIC_API_KEY" },
+    { label: "OpenAI (embeddings)", envVar: "OPENAI_API_KEY" },
+  ],
+  ollama: [],
+};
+
+const NEXT_STEPS = [
+  "Start Qdrant: make qdrant-start",
+  "Then sync files: mgrep sync",
+];
 
 function validateApiKeyFormat(provider: ProviderType, apiKey: string): boolean {
   const trimmed = apiKey.trim();
@@ -230,4 +250,19 @@ export const initCommand = new Command("init")
 
     const config = buildConfig({ provider, ollamaBaseUrl });
     writeConfigFile(config);
+
+    p.note(`Configuration saved to ${CONFIG_FILE}`, "Success");
+
+    const apiKeyRequirements = API_KEY_REQUIREMENTS[provider];
+    if (apiKeyRequirements.length === 0) {
+      p.note("No API key required.", "API Keys");
+    } else {
+      const lines = apiKeyRequirements
+        .map(({ label, envVar }) => `  ${label}: export ${envVar}=...`)
+        .join("\n");
+      p.note(lines, "Required API Keys");
+    }
+
+    p.note(NEXT_STEPS.join("\n"), "Next Steps");
+    p.outro("Configuration complete!");
   });
