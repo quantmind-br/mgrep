@@ -39,9 +39,7 @@ async function tryClipboardTools(text: string): Promise<void> {
     try {
       await spawnWithInput(cmd, args, text);
       return;
-    } catch {
-      continue;
-    }
+    } catch {}
   }
 
   throw new Error("No clipboard tool found. Install xclip, xsel, or wl-copy.");

@@ -22,8 +22,8 @@ import {
   createWebSearchClientFromConfig,
 } from "../lib/context.js";
 import {
-  ContextFormatter,
   type ContextFormat,
+  ContextFormatter,
 } from "../lib/formatters/index.js";
 import type {
   AskResponse,

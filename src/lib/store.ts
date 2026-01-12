@@ -1,4 +1,13 @@
 import * as fs from "node:fs/promises";
+import {
+  type ExtractedSymbol,
+  type SymbolType,
+  extractSymbols,
+  filterByType,
+  searchByName,
+  isSymbolReference,
+  detectLanguage,
+} from "./symbol-extractor.js";
 
 export interface FileMetadata {
   path: string;
@@ -375,7 +384,7 @@ export class TestStore implements Store {
             type: "text",
             text:
               lines[i] + (search_options?.rerank ? "" : " without reranking"),
-            score: 1.0,
+            score: 1.0 - results.length * 0.01,
             metadata: file.metadata,
             chunk_index: results.length,
             generated_metadata: {
@@ -389,6 +398,15 @@ export class TestStore implements Store {
       }
       if (results.length >= limit) break;
     }
+
+    results.sort((a, b) => {
+      const pathA = String((a.metadata as FileMetadata)?.path || "");
+      const pathB = String((b.metadata as FileMetadata)?.path || "");
+      if (pathA !== pathB) return pathA.localeCompare(pathB);
+      const lineA = a.generated_metadata?.start_line || 0;
+      const lineB = b.generated_metadata?.start_line || 0;
+      return lineA - lineB;
+    });
 
     return { data: results };
   }
@@ -444,5 +462,206 @@ export class TestStore implements Store {
       created_at: db.info.created_at,
       updated_at: db.info.updated_at,
     };
+  }
+
+  /**
+   * Find symbol definitions in the test store.
+   *
+   * @param _storeId - Store ID (unused in TestStore)
+   * @param name - Symbol name to search for
+   * @param options - Search options
+   * @returns Array of matching symbols with file paths and line numbers
+   */
+  async findSymbols(
+    _storeId: string,
+    name: string,
+    options?: {
+      type?: SymbolType | "any";
+      path?: string;
+      exact?: boolean;
+      maxResults?: number;
+    },
+  ): Promise<Array<ExtractedSymbol & { path: string }>> {
+    const db = await this.load();
+    const results: Array<ExtractedSymbol & { path: string }> = [];
+    const limit = options?.maxResults || 20;
+
+    for (const [_externalId, file] of Object.entries(db.files)) {
+      // Apply path filter
+      if (options?.path && !file.metadata.path.startsWith(options.path)) {
+        continue;
+      }
+
+      // Extract symbols from file content
+      const language = detectLanguage(file.metadata.path);
+      if (language === "unknown") continue;
+
+      const symbols = extractSymbols(file.content, language);
+
+      // Filter by name
+      let filtered = searchByName(symbols, name, options?.exact || false);
+
+      // Filter by type
+      if (options?.type && options.type !== "any") {
+        filtered = filterByType(filtered, options.type);
+      }
+
+      // Add path to each symbol and collect results
+      for (const symbol of filtered) {
+        results.push({
+          ...symbol,
+          path: file.metadata.path,
+        });
+
+        if (results.length >= limit) break;
+      }
+
+      if (results.length >= limit) break;
+    }
+
+    // Sort deterministically by path then line number
+    results.sort((a, b) => {
+      if (a.path !== b.path) return a.path.localeCompare(b.path);
+      return a.line - b.line;
+    });
+
+    return results;
+  }
+
+  /**
+   * Find all references to a symbol in the test store.
+   *
+   * @param _storeId - Store ID (unused in TestStore)
+   * @param symbol - Symbol name to find references for
+   * @param options - Search options
+   * @returns Array of references with file paths, line numbers, and context
+   */
+  async findReferences(
+    _storeId: string,
+    symbol: string,
+    options?: {
+      path?: string;
+      includeDefinition?: boolean;
+      maxResults?: number;
+    },
+  ): Promise<
+    Array<{
+      path: string;
+      line: number;
+      context: string;
+      type: "usage" | "definition";
+    }>
+  > {
+    const db = await this.load();
+    const results: Array<{
+      path: string;
+      line: number;
+      context: string;
+      type: "usage" | "definition";
+    }> = [];
+    const limit = options?.maxResults || 50;
+
+    // First, find the definition if requested
+    let definition: { path: string; line: number; context: string } | undefined;
+    if (options?.includeDefinition) {
+      const symbols = await this.findSymbols(_storeId, symbol, {
+        exact: true,
+        maxResults: 1,
+      });
+      if (symbols.length > 0) {
+        const sym = symbols[0];
+        const file = Object.values(db.files).find(
+          (f) => f.metadata.path === sym.path,
+        );
+        if (file) {
+          const lines = file.content.split("\n");
+          definition = {
+            path: sym.path,
+            line: sym.line,
+            context: lines[sym.line - 1] || "",
+          };
+        }
+      }
+    }
+
+    // Find all references
+    for (const [_externalId, file] of Object.entries(db.files)) {
+      // Apply path filter
+      if (options?.path && !file.metadata.path.startsWith(options.path)) {
+        continue;
+      }
+
+      const language = detectLanguage(file.metadata.path);
+      if (language === "unknown") continue;
+
+      const lines = file.content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (isSymbolReference(line, symbol, language)) {
+          results.push({
+            path: file.metadata.path,
+            line: i + 1, // 1-indexed
+            context: line,
+            type: "usage",
+          });
+
+          if (results.length >= limit) break;
+        }
+      }
+
+      if (results.length >= limit) break;
+    }
+
+    // Sort deterministically by path then line number
+    results.sort((a, b) => {
+      if (a.path !== b.path) return a.path.localeCompare(b.path);
+      return a.line - b.line;
+    });
+
+    // Add definition at the beginning if requested
+    if (definition) {
+      results.unshift({
+        ...definition,
+        type: "definition",
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Seed test data into the store.
+   * Useful for setting up test fixtures.
+   *
+   * @param files - Array of files to seed
+   */
+  async seedTestData(
+    files: Array<{ path: string; content: string; hash?: string }>,
+  ): Promise<void> {
+    await this.synchronized(async () => {
+      const db = await this.load();
+      for (const file of files) {
+        db.files[file.path] = {
+          metadata: {
+            path: file.path,
+            hash: file.hash || "test-hash",
+          },
+          content: file.content,
+        };
+      }
+      await this.save(db);
+    });
+  }
+
+  /**
+   * Clear all test data from the store.
+   * Useful for cleaning up between tests.
+   */
+  async clearTestData(): Promise<void> {
+    await this.synchronized(async () => {
+      const db = await this.load();
+      db.files = {};
+      await this.save(db);
+    });
   }
 }

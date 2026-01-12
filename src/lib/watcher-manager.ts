@@ -22,15 +22,15 @@ export class WatcherManager {
   private static readonly MGREP_DIR = ".mgrep";
 
   static getMgrepDir(): string {
-    return join(homedir(), this.MGREP_DIR);
+    return join(homedir(), WatcherManager.MGREP_DIR);
   }
 
   static getPidFilePath(storeId: string): string {
-    return join(this.getMgrepDir(), `watcher-${storeId}.pid`);
+    return join(WatcherManager.getMgrepDir(), `watcher-${storeId}.pid`);
   }
 
   static async ensureMgrepDir(): Promise<void> {
-    const dir = this.getMgrepDir();
+    const dir = WatcherManager.getMgrepDir();
     try {
       await fs.mkdir(dir, { recursive: true });
     } catch (error) {
@@ -41,13 +41,13 @@ export class WatcherManager {
   }
 
   static async writePidFile(storeId: string, data: PidFileData): Promise<void> {
-    await this.ensureMgrepDir();
-    const pidPath = this.getPidFilePath(storeId);
+    await WatcherManager.ensureMgrepDir();
+    const pidPath = WatcherManager.getPidFilePath(storeId);
     await fs.writeFile(pidPath, JSON.stringify(data, null, 2));
   }
 
   static async readPidFile(storeId: string): Promise<PidFileData | null> {
-    const pidPath = this.getPidFilePath(storeId);
+    const pidPath = WatcherManager.getPidFilePath(storeId);
     try {
       const content = await fs.readFile(pidPath, "utf-8");
       return JSON.parse(content) as PidFileData;
@@ -57,7 +57,7 @@ export class WatcherManager {
   }
 
   static async cleanupStalePidFile(storeId: string): Promise<void> {
-    const pidPath = this.getPidFilePath(storeId);
+    const pidPath = WatcherManager.getPidFilePath(storeId);
     try {
       await fs.unlink(pidPath);
     } catch {}
@@ -73,13 +73,13 @@ export class WatcherManager {
   }
 
   static async isWatcherRunning(storeId: string): Promise<boolean> {
-    const pidData = await this.readPidFile(storeId);
+    const pidData = await WatcherManager.readPidFile(storeId);
     if (!pidData) {
       return false;
     }
 
-    if (!this.isProcessRunning(pidData.pid)) {
-      await this.cleanupStalePidFile(storeId);
+    if (!WatcherManager.isProcessRunning(pidData.pid)) {
+      await WatcherManager.cleanupStalePidFile(storeId);
       return false;
     }
 
@@ -91,7 +91,7 @@ export class WatcherManager {
     workingDir: string,
     mgrepPath?: string,
   ): Promise<number> {
-    await this.ensureMgrepDir();
+    await WatcherManager.ensureMgrepDir();
 
     const cmd = mgrepPath ?? process.argv[1];
     const args = ["watch", "--store", storeId];
@@ -116,19 +116,19 @@ export class WatcherManager {
       workingDir,
     };
 
-    await this.writePidFile(storeId, pidData);
+    await WatcherManager.writePidFile(storeId, pidData);
 
     return pid;
   }
 
   static async stopWatcher(storeId: string): Promise<boolean> {
-    const pidData = await this.readPidFile(storeId);
+    const pidData = await WatcherManager.readPidFile(storeId);
     if (!pidData) {
       return false;
     }
 
-    if (!this.isProcessRunning(pidData.pid)) {
-      await this.cleanupStalePidFile(storeId);
+    if (!WatcherManager.isProcessRunning(pidData.pid)) {
+      await WatcherManager.cleanupStalePidFile(storeId);
       return false;
     }
 
@@ -136,29 +136,29 @@ export class WatcherManager {
       process.kill(pidData.pid, "SIGTERM");
 
       let attempts = 0;
-      while (attempts < 10 && this.isProcessRunning(pidData.pid)) {
+      while (attempts < 10 && WatcherManager.isProcessRunning(pidData.pid)) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         attempts++;
       }
 
-      if (this.isProcessRunning(pidData.pid)) {
+      if (WatcherManager.isProcessRunning(pidData.pid)) {
         process.kill(pidData.pid, "SIGKILL");
       }
     } catch {}
 
-    await this.cleanupStalePidFile(storeId);
+    await WatcherManager.cleanupStalePidFile(storeId);
     return true;
   }
 
   static async getWatcherStatus(storeId: string): Promise<WatcherStatus> {
-    const pidData = await this.readPidFile(storeId);
+    const pidData = await WatcherManager.readPidFile(storeId);
 
     if (!pidData) {
       return { running: false };
     }
 
-    if (!this.isProcessRunning(pidData.pid)) {
-      await this.cleanupStalePidFile(storeId);
+    if (!WatcherManager.isProcessRunning(pidData.pid)) {
+      await WatcherManager.cleanupStalePidFile(storeId);
       return { running: false };
     }
 

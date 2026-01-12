@@ -1,5 +1,5 @@
-import type { ChunkType, FileMetadata, TextChunk } from "../store.js";
 import { extname } from "node:path";
+import type { ChunkType, FileMetadata, TextChunk } from "../store.js";
 
 export type ContextFormat = "xml" | "markdown" | "plain";
 

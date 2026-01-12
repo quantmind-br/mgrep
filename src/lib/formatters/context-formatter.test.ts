@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { ContextFormatter } from "./context-formatter.js";
+import { describe, expect, it } from "vitest";
 import type { TextChunk } from "../store.js";
+import { ContextFormatter } from "./context-formatter.js";
 
 function createTextChunk(
   text: string,

@@ -227,7 +227,7 @@ export function createTextChunk(
 // Import after mocks
 // ============================================================================
 
-import { MGREP_TOOLS, MGREP_PROMPTS, watchMcp } from "./watch_mcp.js";
+import { MGREP_PROMPTS, MGREP_TOOLS, watchMcp } from "./watch_mcp.js";
 
 // ============================================================================
 // Existing Tests

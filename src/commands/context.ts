@@ -1,6 +1,6 @@
 import { join, normalize } from "node:path";
-import { Command as CommanderCommand } from "commander";
 import type { Command } from "commander";
+import { Command as CommanderCommand } from "commander";
 import { copyToClipboard } from "../lib/clipboard.js";
 import {
   type CliConfigOptions,
@@ -9,8 +9,8 @@ import {
 } from "../lib/config.js";
 import { createFileSystem, createStore } from "../lib/context.js";
 import {
-  ContextFormatter,
   type ContextFormat,
+  ContextFormatter,
 } from "../lib/formatters/index.js";
 import type { Store } from "../lib/store.js";
 import { createIndexingSpinner } from "../lib/sync-helpers.js";
