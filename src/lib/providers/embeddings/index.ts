@@ -15,17 +15,17 @@ export function createEmbeddingsClient(
   switch (config.provider) {
     case "openai":
     case "ollama": {
-      // OpenAI-compatible client (works with OpenAI, Ollama, vLLM, LiteLLM)
+      const isOllama = config.provider === "ollama";
       const client = new OpenAI({
         apiKey:
           config.apiKey ||
           process.env.OPENAI_API_KEY ||
-          (config.provider === "ollama" ? "ollama" : undefined),
+          (isOllama ? "ollama" : undefined),
         baseURL: config.baseUrl || process.env.OPENAI_BASE_URL,
         timeout: config.timeoutMs,
         maxRetries: config.maxRetries,
       });
-      return new OpenAIEmbeddings(config, client);
+      return new OpenAIEmbeddings(config, client, isOllama);
     }
     case "google":
       return new GoogleEmbeddings(config);

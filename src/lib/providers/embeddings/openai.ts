@@ -14,19 +14,27 @@ export class OpenAIEmbeddings implements EmbeddingsClient {
   private model: string;
   private dimensions?: number;
   private batchSize: number;
+  private isOllama: boolean;
 
-  constructor(config: EmbeddingsConfig, client: OpenAI) {
+  /**
+   * @param config - Embeddings configuration
+   * @param client - OpenAI client instance
+   * @param isOllama - If true, won't send `dimensions` param (Ollama ignores it)
+   */
+  constructor(config: EmbeddingsConfig, client: OpenAI, isOllama = false) {
     this.client = client;
     this.model = config.model;
     this.dimensions = config.dimensions;
     this.batchSize = config.batchSize || 100;
+    this.isOllama = isOllama;
   }
 
   async embed(text: string): Promise<EmbeddingResult> {
     const response = await this.client.embeddings.create({
       model: this.model,
       input: text,
-      dimensions: this.dimensions,
+      // Ollama ignores dimensions param - only send for OpenAI-native API
+      ...(this.isOllama ? {} : { dimensions: this.dimensions }),
     });
 
     return {
@@ -38,13 +46,13 @@ export class OpenAIEmbeddings implements EmbeddingsClient {
   async embedBatch(texts: string[]): Promise<EmbeddingResult[]> {
     const results: EmbeddingResult[] = [];
 
-    // Process in batches
     for (let i = 0; i < texts.length; i += this.batchSize) {
       const batch = texts.slice(i, i + this.batchSize);
       const response = await this.client.embeddings.create({
         model: this.model,
         input: batch,
-        dimensions: this.dimensions,
+        // Ollama ignores dimensions param - only send for OpenAI-native API
+        ...(this.isOllama ? {} : { dimensions: this.dimensions }),
       });
 
       for (const data of response.data) {

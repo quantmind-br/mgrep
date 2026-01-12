@@ -712,5 +712,90 @@ describe("embeddings", () => {
         expect(mockCreate).toHaveBeenCalledTimes(1);
       });
     });
+
+    describe("Ollama mode (isOllama=true)", () => {
+      it("should NOT pass dimensions to Ollama client in embed", async () => {
+        const mockResponse = {
+          data: [{ embedding: Array(1536).fill(0.1) }],
+        };
+
+        const mockCreate = vi.fn().mockResolvedValue(mockResponse);
+        const mockClient = { embeddings: { create: mockCreate } };
+
+        const client = new OpenAIEmbeddings(
+          {
+            provider: "ollama",
+            model: "dengcao/Qwen3-Embedding-0.6B:F16",
+            dimensions: 1536,
+            batchSize: 100,
+            maxRetries: 3,
+            timeoutMs: 30000,
+          },
+          mockClient as never,
+          true,
+        );
+
+        await client.embed("test");
+
+        expect(mockCreate).toHaveBeenCalledWith({
+          model: "dengcao/Qwen3-Embedding-0.6B:F16",
+          input: "test",
+        });
+        expect(mockCreate.mock.calls[0][0].dimensions).toBeUndefined();
+      });
+
+      it("should NOT pass dimensions to Ollama client in embedBatch", async () => {
+        const mockResponse = {
+          data: [
+            { embedding: Array(1536).fill(0.1) },
+            { embedding: Array(1536).fill(0.2) },
+          ],
+        };
+
+        const mockCreate = vi.fn().mockResolvedValue(mockResponse);
+        const mockClient = { embeddings: { create: mockCreate } };
+
+        const client = new OpenAIEmbeddings(
+          {
+            provider: "ollama",
+            model: "dengcao/Qwen3-Embedding-0.6B:F16",
+            dimensions: 1536,
+            batchSize: 100,
+            maxRetries: 3,
+            timeoutMs: 30000,
+          },
+          mockClient as never,
+          true,
+        );
+
+        await client.embedBatch(["test1", "test2"]);
+
+        expect(mockCreate).toHaveBeenCalledWith({
+          model: "dengcao/Qwen3-Embedding-0.6B:F16",
+          input: ["test1", "test2"],
+        });
+        expect(mockCreate.mock.calls[0][0].dimensions).toBeUndefined();
+      });
+
+      it("should still return configured dimensions in getDimensions", async () => {
+        const mockClient = { embeddings: { create: vi.fn() } };
+
+        const client = new OpenAIEmbeddings(
+          {
+            provider: "ollama",
+            model: "dengcao/Qwen3-Embedding-0.6B:F16",
+            dimensions: 1536,
+            batchSize: 100,
+            maxRetries: 3,
+            timeoutMs: 30000,
+          },
+          mockClient as never,
+          true,
+        );
+
+        const dimensions = await client.getDimensions();
+        expect(dimensions).toBe(1536);
+      });
+    });
   });
 });

@@ -270,6 +270,34 @@ The init command guides you through:
 3. Configuring Ollama base URL (if using Ollama)
 4. Creating the configuration file
 
+### Ollama Configuration Example
+
+To use local Ollama models for embeddings:
+
+```yaml
+# ~/.config/mgrep/config.yaml
+embeddings:
+  provider: ollama
+  model: nomic-embed-text           # or dengcao/Qwen3-Embedding-0.6B:F16
+  baseUrl: http://localhost:11434/v1
+  dimensions: 768                   # Match model's native dimensions (768 for nomic, 1536 for Qwen3-0.6B)
+  batchSize: 50
+  timeoutMs: 60000
+
+llm:
+  provider: ollama
+  model: qwen2.5:7b
+  baseUrl: http://localhost:11434/v1
+```
+
+**Common Ollama embedding models:**
+| Model | Dimensions |
+|-------|------------|
+| `nomic-embed-text` | 768 |
+| `mxbai-embed-large` | 1024 |
+| `dengcao/Qwen3-Embedding-0.6B:F16` | 1536 |
+| `all-minilm` | 384 |
+
 ## API Documentation
 `mgrep` exposes its functionality primarily through the **Model Context Protocol (MCP)**.
 
