@@ -800,4 +800,191 @@ describe("MCP Tool Integration Tests", () => {
       expect(result.content[0]?.text).toBeTruthy();
     });
   });
+
+  describe("MCP Resources", () => {
+    describe("listResources", () => {
+      it("lists all indexed files as resources", async () => {
+        await client.seedData([
+          { path: "src/index.ts", content: "export const main = 1;" },
+          { path: "src/utils.ts", content: "export const util = 2;" },
+        ]);
+
+        const resources = await client.listResources();
+
+        expect(resources.length).toBeGreaterThanOrEqual(2);
+        expect(resources[0]).toHaveProperty("uri");
+        expect(resources[0]).toHaveProperty("name");
+      });
+
+      it("includes correct mimeType for each file", async () => {
+        await client.seedData([{ path: "test.ts", content: "const x = 1;" }]);
+
+        const resources = await client.listResources();
+
+        expect(resources.length).toBeGreaterThan(0);
+        expect(resources[0]?.mimeType).toBe("text/plain");
+      });
+
+      it("has valid URI format mgrep://file/{path}", async () => {
+        await client.seedData([
+          { path: "src/index.ts", content: "export const x = 1;" },
+        ]);
+
+        const resources = await client.listResources();
+
+        expect(resources.length).toBeGreaterThan(0);
+        expect(resources[0]?.uri).toMatch(/^mgrep:\/\/file\//);
+      });
+
+      it("returns empty array for empty store", async () => {
+        const resources = await client.listResources();
+
+        expect(Array.isArray(resources)).toBe(true);
+      });
+    });
+
+    describe("readResource", () => {
+      it("returns file content for valid URI", async () => {
+        const content = "export function main() { return 42; }";
+        await client.seedData([{ path: "src/index.ts", content }]);
+
+        const resources = await client.listResources();
+        const resource = resources.find((r) => r.uri.includes("src/index.ts"));
+
+        if (resource) {
+          const result = await client.readResource(resource.uri);
+          expect(result.text).toBe(content);
+          expect(result.mimeType).toBe("text/plain");
+        }
+      });
+
+      it("errors for non-existent resource", async () => {
+        try {
+          await client.readResource("mgrep://file/nonexistent.txt");
+          expect.fail("Should have thrown an error");
+        } catch (error) {
+          expect(error).toBeDefined();
+          expect(String(error)).toContain("File not found");
+        }
+      });
+
+      it("errors for path outside project root", async () => {
+        try {
+          await client.readResource("mgrep://file/../../../etc/passwd");
+          expect.fail("Should have thrown an error");
+        } catch (error) {
+          expect(error).toBeDefined();
+        }
+      });
+    });
+  });
+
+  describe("MCP Prompts", () => {
+    describe("listPrompts", () => {
+      it("lists all 4 prompts", async () => {
+        const prompts = await client.listPrompts();
+
+        expect(prompts.length).toBe(4);
+        const promptNames = prompts.map((p) => p.name);
+        expect(promptNames).toContain("codebase-overview");
+        expect(promptNames).toContain("find-implementation");
+        expect(promptNames).toContain("debug-flow");
+        expect(promptNames).toContain("find-similar-code");
+      });
+
+      it("includes correct arguments for each prompt", async () => {
+        const prompts = await client.listPrompts();
+
+        const findImpl = prompts.find((p) => p.name === "find-implementation");
+        expect(findImpl?.arguments).toBeDefined();
+        expect(findImpl?.arguments?.length).toBeGreaterThan(0);
+        expect(findImpl?.arguments?.[0]?.name).toBe("feature");
+
+        const debugFlow = prompts.find((p) => p.name === "debug-flow");
+        expect(debugFlow?.arguments?.[0]?.name).toBe("entrypoint");
+
+        const findSimilar = prompts.find((p) => p.name === "find-similar-code");
+        expect(findSimilar?.arguments?.[0]?.name).toBe("code");
+      });
+    });
+
+    describe("codebase-overview", () => {
+      it("returns workflow instructions", async () => {
+        const messages = await client.getPrompt("codebase-overview");
+
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages[0]?.role).toBe("user");
+        expect(messages[0]?.content.type).toBe("text");
+      });
+
+      it("does not require any arguments", async () => {
+        const messages = await client.getPrompt("codebase-overview", {});
+
+        expect(messages.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("find-implementation", () => {
+      it("returns instructions with feature substituted", async () => {
+        const messages = await client.getPrompt("find-implementation", {
+          feature: "authentication",
+        });
+
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages[0]?.content.text).toContain("find-implementation");
+      });
+
+      it("handles missing feature argument gracefully", async () => {
+        const messages = await client.getPrompt("find-implementation", {});
+
+        expect(messages.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("debug-flow", () => {
+      it("returns instructions with entrypoint substituted", async () => {
+        const messages = await client.getPrompt("debug-flow", {
+          entrypoint: "main",
+        });
+
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages[0]?.content.text).toContain("debug-flow");
+      });
+
+      it("handles missing entrypoint argument gracefully", async () => {
+        const messages = await client.getPrompt("debug-flow", {});
+
+        expect(messages.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("find-similar-code", () => {
+      it("returns instructions with code substituted", async () => {
+        const messages = await client.getPrompt("find-similar-code", {
+          code: "function test() {}",
+        });
+
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages[0]?.content.text).toContain("find-similar-code");
+      });
+
+      it("handles missing code argument gracefully", async () => {
+        const messages = await client.getPrompt("find-similar-code", {});
+
+        expect(messages.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("invalid prompts", () => {
+      it("errors on unknown prompt name", async () => {
+        try {
+          await client.getPrompt("nonexistent-prompt");
+          expect.fail("Should have thrown an error");
+        } catch (error) {
+          expect(error).toBeDefined();
+          expect(String(error)).toContain("Unknown prompt");
+        }
+      });
+    });
+  });
 });
