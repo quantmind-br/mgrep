@@ -1,7 +1,5 @@
 import * as fs from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type PidFileData, WatcherManager } from "./watcher-manager.js";
 
 vi.mock("node:fs/promises");
