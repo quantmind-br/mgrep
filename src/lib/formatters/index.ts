@@ -6,3 +6,10 @@ export {
 } from "./context-formatter.js";
 
 export { HyperlinkFormatter } from "./hyperlink-formatter.js";
+
+export {
+  extractSources,
+  formatAskResponse,
+  formatChunk,
+  formatSearchResponse,
+} from "./search-formatter.js";

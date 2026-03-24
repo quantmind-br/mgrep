@@ -1,136 +1,19 @@
 import { join, normalize } from "node:path";
 import type { Command } from "commander";
 import { Command as CommanderCommand, InvalidArgumentError } from "commander";
+import type { CliConfigOptions } from "../lib/config.js";
 import {
-  type CliConfigOptions,
-  loadConfig,
-  type MgrepConfig,
-} from "../lib/config.js";
-import {
-  createFileSystem,
-  createStore,
-  createWebSearchClientFromConfig,
-} from "../lib/context.js";
+  formatAskResponse,
+  formatSearchResponse,
+} from "../lib/formatters/search-formatter.js";
 import { FzfPipe, type SearchResultForFzf } from "../lib/fzf-pipe.js";
 import { nativeSelect } from "../lib/native-select.js";
-import type { WebSearchClient } from "../lib/providers/web/index.js";
-import type {
-  AskResponse,
-  ChunkType,
-  FileMetadata,
-  SearchResponse,
-  Store,
-  TextChunk,
-} from "../lib/store.js";
 import {
-  createIndexingSpinner,
-  formatDryRunSummary,
-} from "../lib/sync-helpers.js";
-import { initialSync } from "../lib/utils.js";
+  createSearchContext,
+  syncFiles,
+} from "../lib/search-command-helpers.js";
+import type { FileMetadata, TextChunk } from "../lib/store.js";
 import { WatcherManager } from "../lib/watcher-manager.js";
-
-function extractSources(response: AskResponse): { [key: number]: ChunkType } {
-  const sources: { [key: number]: ChunkType } = {};
-  const answer = response.answer;
-
-  // Match ALL cite tags and capture the i="..."
-  const citeTags = answer.match(/<cite i="(\d+(?:-\d+)?)"/g) ?? [];
-
-  for (const tag of citeTags) {
-    // Extract the index or index range inside the tag.
-    const index = tag.match(/i="(\d+(?:-\d+)?)"/)?.[1];
-    if (!index) continue;
-
-    // Case 1: Single index
-    if (!index.includes("-")) {
-      const idx = Number(index);
-      if (!Number.isNaN(idx) && idx < response.sources.length) {
-        sources[idx] = response.sources[idx];
-      }
-      continue;
-    }
-
-    // Case 2: Range "start-end"
-    const [start, end] = index.split("-").map(Number);
-
-    if (
-      !Number.isNaN(start) &&
-      !Number.isNaN(end) &&
-      start >= 0 &&
-      end >= start &&
-      end < response.sources.length
-    ) {
-      for (let i = start; i <= end; i++) {
-        sources[i] = response.sources[i];
-      }
-    }
-  }
-
-  return sources;
-}
-
-function formatAskResponse(response: AskResponse, show_content: boolean) {
-  const sources = extractSources(response);
-  const sourceEntries = Object.entries(sources).map(
-    ([index, chunk]) => `${index}: ${formatChunk(chunk, show_content)}`,
-  );
-  return `${response.answer}\n\n${sourceEntries.join("\n")}`;
-}
-
-function formatSearchResponse(response: SearchResponse, show_content: boolean) {
-  return response.data
-    .map((chunk) => formatChunk(chunk, show_content))
-    .join("\n");
-}
-
-function isWebResult(
-  chunk: ChunkType,
-): chunk is TextChunk & { filename: string } {
-  return (
-    chunk.type === "text" &&
-    "filename" in chunk &&
-    typeof chunk.filename === "string" &&
-    chunk.filename.startsWith("http")
-  );
-}
-
-function formatChunk(chunk: ChunkType, show_content: boolean) {
-  const pwd = process.cwd();
-
-  if (isWebResult(chunk)) {
-    const url = chunk.filename;
-    const content = show_content ? chunk.text : "";
-    return `${url} (${(chunk.score * 100).toFixed(2)}% match)${content ? `\n${content}` : ""}`;
-  }
-
-  const path =
-    (chunk.metadata as FileMetadata)?.path?.replace(pwd, "") ?? "Unknown path";
-  let line_range = "";
-  let content = "";
-  switch (chunk.type) {
-    case "text": {
-      const start_line = (chunk.generated_metadata?.start_line ?? 0) + 1;
-      const end_line = start_line + (chunk.generated_metadata?.num_lines ?? 0);
-      line_range = `:${start_line}-${end_line}`;
-      content = show_content ? chunk.text : "";
-      break;
-    }
-    case "image_url":
-      line_range =
-        chunk.generated_metadata?.type === "pdf"
-          ? `, page ${chunk.chunk_index + 1}`
-          : "";
-      break;
-    case "audio_url":
-      line_range = "";
-      break;
-    case "video_url":
-      line_range = "";
-      break;
-  }
-
-  return `.${path}${line_range} (${(chunk.score * 100).toFixed(2)}% match)${content ? `\n${content}` : ""}`;
-}
 
 function parseBooleanEnv(
   envVar: string | undefined,
@@ -139,89 +22,6 @@ function parseBooleanEnv(
   if (envVar === undefined) return defaultValue;
   const lower = envVar.toLowerCase();
   return lower === "1" || lower === "true" || lower === "yes" || lower === "y";
-}
-
-/**
- * Performs a web search using Tavily and returns results as ChunkType array
- */
-async function performWebSearch(
-  webClient: WebSearchClient,
-  query: string,
-  maxResults: number,
-): Promise<TextChunk[]> {
-  const response = await webClient.search(query, { maxResults });
-
-  return response.results.map((result, index) => ({
-    type: "text" as const,
-    text: result.content,
-    score: result.score,
-    filename: result.url,
-    metadata: {
-      path: result.url,
-      hash: "",
-      title: result.title,
-    },
-    chunk_index: index,
-    generated_metadata: {
-      start_line: 0,
-      num_lines: result.content.split("\n").length,
-    },
-  }));
-}
-
-/**
- * Syncs local files to the store with progress indication.
- * @returns true if the caller should return early (dry-run mode), false otherwise
- */
-async function syncFiles(
-  store: Store,
-  storeName: string,
-  root: string,
-  dryRun: boolean,
-  config?: MgrepConfig,
-): Promise<boolean> {
-  const { spinner, onProgress } = createIndexingSpinner(root);
-
-  try {
-    const fileSystem = createFileSystem({
-      ignorePatterns: [],
-      ignoreConfig: config?.ignore,
-    });
-    const result = await initialSync(
-      store,
-      fileSystem,
-      storeName,
-      root,
-      dryRun,
-      onProgress,
-      config,
-    );
-
-    while (true) {
-      const info = await store.getInfo(storeName);
-      spinner.text = `Indexing ${info.counts.pending + info.counts.in_progress} file(s)`;
-      if (info.counts.pending === 0 && info.counts.in_progress === 0) {
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    spinner.succeed("Indexing complete");
-
-    if (dryRun) {
-      console.log(
-        formatDryRunSummary(result, {
-          actionDescription: "would have indexed",
-        }),
-      );
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    spinner.stop();
-    throw error;
-  }
 }
 
 export const search: Command = new CommanderCommand("search")
@@ -259,11 +59,6 @@ export const search: Command = new CommanderCommand("search")
     parseBooleanEnv(process.env.MGREP_RERANK, true), // `true` here means that reranking is enabled by default
   )
   .option(
-    "-w, --web",
-    "Include web search results using Tavily",
-    parseBooleanEnv(process.env.MGREP_WEB, false),
-  )
-  .option(
     "--fzf",
     "Pipe results through fzf for interactive selection",
     parseBooleanEnv(process.env.MGREP_FZF, false),
@@ -297,7 +92,6 @@ export const search: Command = new CommanderCommand("search")
       sync: boolean;
       dryRun: boolean;
       rerank: boolean;
-      web: boolean;
       fzf: boolean;
       autoWatch: boolean;
       maxFileSize?: number;
@@ -310,14 +104,17 @@ export const search: Command = new CommanderCommand("search")
     const cliOptions: CliConfigOptions = {
       maxFileSize: options.maxFileSize,
     };
-    const config = loadConfig(root, cliOptions);
 
     try {
-      const store = await createStore();
+      const { config, store, fileSystem } = await createSearchContext(
+        root,
+        cliOptions,
+      );
 
       if (options.sync) {
         const shouldReturn = await syncFiles(
           store,
+          fileSystem,
           options.store,
           root,
           options.dryRun,
@@ -361,20 +158,6 @@ export const search: Command = new CommanderCommand("search")
 
       const maxCount = parseInt(options.maxCount, 10);
 
-      // Perform web search if enabled
-      let webResults: TextChunk[] = [];
-      if (options.web) {
-        try {
-          const webClient = createWebSearchClientFromConfig(config.tavily);
-          webResults = await performWebSearch(webClient, pattern, maxCount);
-        } catch (webError) {
-          const webMessage =
-            webError instanceof Error ? webError.message : "Unknown error";
-          console.error(`Web search failed: ${webMessage}`);
-          // Continue with local search even if web search fails
-        }
-      }
-
       let response: string;
       if (!options.answer) {
         const results = await store.search(
@@ -384,12 +167,6 @@ export const search: Command = new CommanderCommand("search")
           { rerank: options.rerank },
           filters,
         );
-
-        if (webResults.length > 0) {
-          const combinedData = [...results.data, ...webResults];
-          combinedData.sort((a, b) => b.score - a.score);
-          results.data = combinedData.slice(0, maxCount);
-        }
 
         if (options.fzf) {
           const fzfPipe = new FzfPipe();
@@ -455,10 +232,6 @@ export const search: Command = new CommanderCommand("search")
           { rerank: options.rerank },
           filters,
         );
-
-        if (webResults.length > 0) {
-          results.sources = [...results.sources, ...webResults];
-        }
 
         response = formatAskResponse(results, options.content);
       }
