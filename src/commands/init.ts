@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as p from "@clack/prompts";
 import { Command } from "commander";
 import YAML from "yaml";
+import { runConfigTUI } from "../lib/config-tui.js";
 
 export function getConfigPaths() {
   const configDir = path.join(os.homedir(), ".config", "mgrep");
@@ -75,11 +76,6 @@ export type InitRuntimeState = {
   ollamaBaseUrl?: string;
 };
 
-type ApiKeyRequirement = {
-  label: string;
-  envVar: string;
-};
-
 const DEFAULT_QDRANT_URL = "http://localhost:6333";
 const DEFAULT_COLLECTION_PREFIX = "mgrep_";
 const DEFAULT_BATCH_SIZE = 100;
@@ -91,21 +87,6 @@ const DEFAULT_LLM_TIMEOUT_MS = 60000;
 const DEFAULT_LLM_MAX_RETRIES = 3;
 const DEFAULT_SYNC_CONCURRENCY = 20;
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const API_KEY_REQUIREMENTS: Record<ProviderType, ApiKeyRequirement[]> = {
-  openai: [{ label: "OpenAI", envVar: "OPENAI_API_KEY" }],
-  google: [{ label: "Google", envVar: "GOOGLE_API_KEY" }],
-  anthropic: [
-    { label: "Anthropic", envVar: "ANTHROPIC_API_KEY" },
-    { label: "OpenAI (embeddings)", envVar: "OPENAI_API_KEY" },
-  ],
-  ollama: [],
-};
-
-const NEXT_STEPS = [
-  "Start Qdrant: make qdrant-start",
-  "Then sync files: mgrep sync",
-];
 
 export function validateApiKeyFormat(
   provider: ProviderType,
@@ -177,100 +158,18 @@ export const initCommand = new Command("init")
   .option("--reconfigure", "Overwrite existing configuration", false)
   .action(async (options) => {
     const { configFile } = getConfigPaths();
-    p.intro("mgrep configuration wizard");
 
     if (fs.existsSync(configFile) && !options.reconfigure) {
+      p.note(`Config already exists at ${configFile}`, "mgrep");
       const overwrite = await p.confirm({
-        message: "Configuration already exists. Overwrite?",
+        message: "Overwrite?",
         initialValue: false,
       });
 
-      if (p.isCancel(overwrite)) {
-        p.cancel("Configuration cancelled.");
-        return;
-      }
-
-      if (!overwrite) {
-        p.cancel("Configuration cancelled.");
+      if (p.isCancel(overwrite) || !overwrite) {
         return;
       }
     }
 
-    const provider = await p.select({
-      message: "Select your provider:",
-      options: [
-        { value: "openai", label: "OpenAI", hint: "GPT-4, text-embedding-3" },
-        { value: "google", label: "Google", hint: "Gemini models" },
-        { value: "anthropic", label: "Anthropic", hint: "Claude models" },
-        { value: "ollama", label: "Ollama", hint: "Local models" },
-      ],
-    });
-
-    if (p.isCancel(provider)) {
-      p.cancel("Configuration cancelled.");
-      return;
-    }
-
-    const defaults = PROVIDER_DEFAULTS[provider];
-    p.note(
-      `Embeddings: ${defaults.embeddingProvider} (${defaults.embeddingModel})\n` +
-        `LLM: ${defaults.llmModel}`,
-      "Defaults",
-    );
-
-    if (provider === "anthropic") {
-      p.note(
-        "Anthropic does not provide embeddings. OpenAI will be used for embeddings.",
-        "Note",
-      );
-    }
-
-    let ollamaBaseUrl: string | undefined;
-
-    if (provider === "ollama") {
-      const baseUrl = await p.text({
-        message: "Ollama base URL:",
-        initialValue: "http://localhost:11434/v1",
-      });
-
-      if (p.isCancel(baseUrl)) {
-        p.cancel("Configuration cancelled.");
-        return;
-      }
-
-      ollamaBaseUrl = baseUrl.trim();
-      p.note(`Using ${ollamaBaseUrl}`, "Ollama");
-    } else {
-      const apiKey = await p.password({
-        message: `Enter your ${provider} API key:`,
-        validate(value) {
-          return validateApiKeyFormat(provider, value)
-            ? undefined
-            : "API key format looks invalid.";
-        },
-      });
-
-      if (p.isCancel(apiKey)) {
-        p.cancel("Configuration cancelled.");
-        return;
-      }
-    }
-
-    const config = buildConfig({ provider, ollamaBaseUrl });
-    writeConfigFile(config);
-
-    p.note(`Configuration saved to ${configFile}`, "Success");
-
-    const apiKeyRequirements = API_KEY_REQUIREMENTS[provider];
-    if (apiKeyRequirements.length === 0) {
-      p.note("No API key required.", "API Keys");
-    } else {
-      const lines = apiKeyRequirements
-        .map(({ label, envVar }) => `  ${label}: export ${envVar}=...`)
-        .join("\n");
-      p.note(lines, "Required API Keys");
-    }
-
-    p.note(NEXT_STEPS.join("\n"), "Next Steps");
-    p.outro("Configuration complete!");
+    await runConfigTUI(process.cwd(), "global");
   });
