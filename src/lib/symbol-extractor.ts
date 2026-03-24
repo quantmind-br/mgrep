@@ -220,48 +220,43 @@ const GO_PATTERNS: PatternDefinition[] = [
 // Language Detection
 // ============================================================================
 
+const EXTENSION_TO_LANGUAGE: Record<string, Language> = {
+  ts: "typescript",
+  tsx: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  py: "python",
+  pyw: "python",
+  pyi: "python",
+  go: "go",
+};
+
 /**
  * Detect programming language from file path extension.
  */
 export function detectLanguage(path: string): Language {
   const ext = path.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "ts":
-    case "tsx":
-    case "mts":
-    case "cts":
-      return "typescript";
-    case "js":
-    case "jsx":
-    case "mjs":
-    case "cjs":
-      return "javascript";
-    case "py":
-    case "pyw":
-    case "pyi":
-      return "python";
-    case "go":
-      return "go";
-    default:
-      return "unknown";
-  }
+  if (!ext) return "unknown";
+  return EXTENSION_TO_LANGUAGE[ext] ?? "unknown";
 }
+
+const LANGUAGE_PATTERNS: Record<Language, PatternDefinition[]> = {
+  typescript: TS_PATTERNS,
+  javascript: TS_PATTERNS,
+  python: PY_PATTERNS,
+  go: GO_PATTERNS,
+  unknown: [],
+};
 
 /**
  * Get patterns for a specific language.
  */
 function getPatternsForLanguage(language: Language): PatternDefinition[] {
-  switch (language) {
-    case "typescript":
-    case "javascript":
-      return TS_PATTERNS;
-    case "python":
-      return PY_PATTERNS;
-    case "go":
-      return GO_PATTERNS;
-    default:
-      return [];
-  }
+  return LANGUAGE_PATTERNS[language] ?? [];
 }
 
 // ============================================================================
@@ -376,200 +371,191 @@ export function extractSymbols(
   return symbols;
 }
 
+const COMMENT_PREFIXES: Record<Language, readonly string[]> = {
+  typescript: ["//", "/*", "*"],
+  javascript: ["//", "/*", "*"],
+  go: ["//", "/*", "*"],
+  python: ["#", '"""', "'''"],
+  unknown: [],
+};
+
 /**
  * Check if a line is a comment.
  */
 function isCommentLine(trimmedLine: string, language: Language): boolean {
-  switch (language) {
-    case "typescript":
-    case "javascript":
-    case "go":
-      return (
-        trimmedLine.startsWith("//") ||
-        trimmedLine.startsWith("/*") ||
-        trimmedLine.startsWith("*")
-      );
-    case "python":
-      return (
-        trimmedLine.startsWith("#") ||
-        trimmedLine.startsWith('"""') ||
-        trimmedLine.startsWith("'''")
-      );
-    default:
-      return false;
-  }
+  return (
+    COMMENT_PREFIXES[language]?.some((p) => trimmedLine.startsWith(p)) ?? false
+  );
 }
+
+const RESERVED_WORDS: Record<Language, Set<string>> = {
+  typescript: new Set([
+    "if",
+    "else",
+    "for",
+    "while",
+    "do",
+    "switch",
+    "case",
+    "break",
+    "continue",
+    "return",
+    "throw",
+    "try",
+    "catch",
+    "finally",
+    "new",
+    "delete",
+    "typeof",
+    "instanceof",
+    "in",
+    "of",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "this",
+    "super",
+    "import",
+    "export",
+    "default",
+    "from",
+    "as",
+    "async",
+    "await",
+    "yield",
+    "get",
+    "set",
+  ]),
+  javascript: new Set([
+    "if",
+    "else",
+    "for",
+    "while",
+    "do",
+    "switch",
+    "case",
+    "break",
+    "continue",
+    "return",
+    "throw",
+    "try",
+    "catch",
+    "finally",
+    "new",
+    "delete",
+    "typeof",
+    "instanceof",
+    "in",
+    "of",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "this",
+    "super",
+    "import",
+    "export",
+    "default",
+    "from",
+    "as",
+    "async",
+    "await",
+    "yield",
+    "get",
+    "set",
+  ]),
+  python: new Set([
+    "if",
+    "elif",
+    "else",
+    "for",
+    "while",
+    "break",
+    "continue",
+    "return",
+    "yield",
+    "try",
+    "except",
+    "finally",
+    "raise",
+    "import",
+    "from",
+    "as",
+    "with",
+    "pass",
+    "lambda",
+    "True",
+    "False",
+    "None",
+    "and",
+    "or",
+    "not",
+    "in",
+    "is",
+    "global",
+    "nonlocal",
+    "assert",
+    "del",
+  ]),
+  go: new Set([
+    "if",
+    "else",
+    "for",
+    "switch",
+    "case",
+    "break",
+    "continue",
+    "return",
+    "goto",
+    "fallthrough",
+    "defer",
+    "panic",
+    "recover",
+    "go",
+    "select",
+    "chan",
+    "map",
+    "range",
+    "true",
+    "false",
+    "nil",
+    "iota",
+    "package",
+    "import",
+    "const",
+    "var",
+    "type",
+    "func",
+    "struct",
+    "interface",
+    "default",
+  ]),
+  unknown: new Set(),
+};
 
 /**
  * Check if a name is a language reserved word.
  */
 function isReservedWord(name: string, language: Language): boolean {
-  const reserved: Record<Language, Set<string>> = {
-    typescript: new Set([
-      "if",
-      "else",
-      "for",
-      "while",
-      "do",
-      "switch",
-      "case",
-      "break",
-      "continue",
-      "return",
-      "throw",
-      "try",
-      "catch",
-      "finally",
-      "new",
-      "delete",
-      "typeof",
-      "instanceof",
-      "in",
-      "of",
-      "true",
-      "false",
-      "null",
-      "undefined",
-      "this",
-      "super",
-      "import",
-      "export",
-      "default",
-      "from",
-      "as",
-      "async",
-      "await",
-      "yield",
-      "get",
-      "set",
-    ]),
-    javascript: new Set([
-      "if",
-      "else",
-      "for",
-      "while",
-      "do",
-      "switch",
-      "case",
-      "break",
-      "continue",
-      "return",
-      "throw",
-      "try",
-      "catch",
-      "finally",
-      "new",
-      "delete",
-      "typeof",
-      "instanceof",
-      "in",
-      "of",
-      "true",
-      "false",
-      "null",
-      "undefined",
-      "this",
-      "super",
-      "import",
-      "export",
-      "default",
-      "from",
-      "as",
-      "async",
-      "await",
-      "yield",
-      "get",
-      "set",
-    ]),
-    python: new Set([
-      "if",
-      "elif",
-      "else",
-      "for",
-      "while",
-      "break",
-      "continue",
-      "return",
-      "yield",
-      "try",
-      "except",
-      "finally",
-      "raise",
-      "import",
-      "from",
-      "as",
-      "with",
-      "pass",
-      "lambda",
-      "True",
-      "False",
-      "None",
-      "and",
-      "or",
-      "not",
-      "in",
-      "is",
-      "global",
-      "nonlocal",
-      "assert",
-      "del",
-    ]),
-    go: new Set([
-      "if",
-      "else",
-      "for",
-      "switch",
-      "case",
-      "break",
-      "continue",
-      "return",
-      "goto",
-      "fallthrough",
-      "defer",
-      "panic",
-      "recover",
-      "go",
-      "select",
-      "chan",
-      "map",
-      "range",
-      "true",
-      "false",
-      "nil",
-      "iota",
-      "package",
-      "import",
-      "const",
-      "var",
-      "type",
-      "func",
-      "struct",
-      "interface",
-      "default",
-    ]),
-    unknown: new Set(),
-  };
-
-  return reserved[language]?.has(name) ?? false;
+  return RESERVED_WORDS[language]?.has(name) ?? false;
 }
+
+const CONSTRUCTOR_CHECKS: Record<Language, ((name: string) => boolean) | null> =
+  {
+    typescript: (name) => name === "constructor",
+    javascript: (name) => name === "constructor",
+    python: (name) =>
+      name === "__init__" || (name.startsWith("__") && name.endsWith("__")),
+    go: null, // Go doesn't have constructors
+    unknown: null,
+  };
 
 /**
  * Check if a method name is a constructor.
  */
 function isConstructor(name: string, language: Language): boolean {
-  switch (language) {
-    case "typescript":
-    case "javascript":
-      return name === "constructor";
-    case "python":
-      return (
-        name === "__init__" || (name.startsWith("__") && name.endsWith("__"))
-      );
-    case "go":
-      return false; // Go doesn't have constructors
-    default:
-      return false;
-  }
+  return CONSTRUCTOR_CHECKS[language]?.(name) ?? false;
 }
 
 // ============================================================================
