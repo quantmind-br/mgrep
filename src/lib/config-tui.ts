@@ -9,7 +9,6 @@ import {
   type ProviderType,
   type QdrantConfig,
   type SyncConfig,
-  type TavilyConfig,
 } from "./config.js";
 import {
   type ConfigTarget,
@@ -29,11 +28,11 @@ export interface TUIState {
 }
 
 export type MenuAction =
+  | "wizard"
   | "embeddings"
   | "llm"
   | "qdrant"
   | "sync"
-  | "tavily"
   | "ignore"
   | "general"
   | "view"
@@ -51,9 +50,18 @@ const PROVIDER_OPTIONS = [
   { value: "ollama" as const, label: "Ollama", hint: "Local models" },
 ];
 
-const SEARCH_DEPTH_OPTIONS = [
-  { value: "basic" as const, label: "Basic" },
-  { value: "advanced" as const, label: "Advanced" },
+const EMBEDDINGS_PROVIDER_OPTIONS = [
+  {
+    value: "openai" as const,
+    label: "OpenAI",
+    hint: "text-embedding-3-small/large",
+  },
+  { value: "google" as const, label: "Google", hint: "gemini-embedding-001" },
+  {
+    value: "ollama" as const,
+    label: "Ollama",
+    hint: "nomic-embed-text, mxbai-embed-large",
+  },
 ];
 
 export async function selectConfigTarget(
@@ -134,6 +142,11 @@ export async function mainMenuLoop(state: TUIState): Promise<void> {
       continue;
     }
 
+    if (action === "wizard") {
+      await runSetupWizard(state);
+      continue;
+    }
+
     await handleSectionEdit(state, action);
   }
 }
@@ -145,6 +158,11 @@ async function showMainMenu(state: TUIState): Promise<MenuAction | null> {
   const result = await p.select({
     message: `${targetLabel} Configuration${changesLabel}`,
     options: [
+      {
+        value: "wizard" as MenuAction,
+        label: "✦ Quick Setup",
+        hint: "Guided setup for Qdrant, embeddings, and LLM",
+      },
       {
         value: "embeddings" as MenuAction,
         label: "Embeddings",
@@ -164,11 +182,6 @@ async function showMainMenu(state: TUIState): Promise<MenuAction | null> {
         value: "sync" as MenuAction,
         label: "Sync",
         hint: "Concurrency settings",
-      },
-      {
-        value: "tavily" as MenuAction,
-        label: "Tavily",
-        hint: "Web search configuration",
       },
       {
         value: "ignore" as MenuAction,
@@ -210,26 +223,26 @@ async function handleSectionEdit(
   action: MenuAction,
 ): Promise<void> {
   switch (action) {
+    case "wizard":
+      await runSetupWizard(state);
+      break;
     case "embeddings":
-      await editEmbeddings(state);
+      await editSection(state, EMBEDDINGS_SECTION);
       break;
     case "llm":
-      await editLLM(state);
+      await editSection(state, LLM_SECTION);
       break;
     case "qdrant":
       await editQdrant(state);
       break;
     case "sync":
-      await editSync(state);
-      break;
-    case "tavily":
-      await editTavily(state);
+      await editSection(state, SYNC_SECTION);
       break;
     case "ignore":
-      await editIgnore(state);
+      await editSection(state, IGNORE_SECTION);
       break;
     case "general":
-      await editGeneral(state);
+      await editSection(state, GENERAL_SECTION);
       break;
   }
 }
@@ -281,15 +294,6 @@ export function viewCurrentConfig(state: TUIState): void {
   lines.push(`  concurrency: ${merged.sync.concurrency}`);
   lines.push("");
 
-  lines.push(chalk.bold("Tavily:"));
-  if (merged.tavily.apiKey)
-    lines.push(`  apiKey: ${maskSecret(merged.tavily.apiKey)}`);
-  lines.push(`  maxResults: ${merged.tavily.maxResults}`);
-  lines.push(`  searchDepth: ${merged.tavily.searchDepth}`);
-  lines.push(`  includeImages: ${merged.tavily.includeImages}`);
-  lines.push(`  includeRawContent: ${merged.tavily.includeRawContent}`);
-  lines.push("");
-
   lines.push(chalk.bold("Ignore:"));
   lines.push(`  categories.vendor: ${merged.ignore.categories.vendor}`);
   lines.push(`  categories.generated: ${merged.ignore.categories.generated}`);
@@ -329,7 +333,6 @@ function getMergedConfig(state: TUIState): MgrepConfig {
     llm: { ...DEFAULT_CONFIG.llm, ...state.config.llm },
     qdrant: { ...DEFAULT_CONFIG.qdrant, ...state.config.qdrant },
     sync: { ...DEFAULT_CONFIG.sync, ...state.config.sync },
-    tavily: { ...DEFAULT_CONFIG.tavily, ...state.config.tavily },
     ignore: {
       categories: {
         ...DEFAULT_CONFIG.ignore.categories,
@@ -367,6 +370,634 @@ interface EditFieldOptions {
   type: "text" | "number" | "boolean" | "password";
   validate?: (value: string) => string | undefined;
   placeholder?: string;
+}
+
+type FieldType = "text" | "number" | "boolean" | "password" | "select";
+
+interface SelectOption {
+  value: string;
+  label: string;
+  hint?: string;
+}
+
+interface FieldDef {
+  key: string;
+  label: string;
+  type: FieldType;
+  options?: SelectOption[];
+  validate?: (value: string) => string | undefined;
+  placeholder?: string;
+  transform?: {
+    toDisplay?: (value: unknown) => unknown;
+    fromDisplay?: (value: unknown) => unknown;
+  };
+  parseList?: boolean;
+}
+
+interface SectionDef {
+  key: "embeddings" | "llm" | "sync" | "ignore" | "general";
+  title: string;
+  fields: FieldDef[];
+  successMessage: string;
+}
+
+const EMBEDDINGS_SECTION: SectionDef = {
+  key: "embeddings",
+  title: "Configure embeddings provider settings",
+  successMessage: "Embeddings settings updated",
+  fields: [
+    {
+      key: "provider",
+      label: "Provider",
+      type: "select",
+      options: EMBEDDINGS_PROVIDER_OPTIONS,
+    },
+    {
+      key: "model",
+      label: "Model",
+      type: "text",
+      placeholder: DEFAULT_CONFIG.embeddings.model,
+    },
+    {
+      key: "baseUrl",
+      label: "Base URL",
+      type: "text",
+    },
+    {
+      key: "apiKey",
+      label: "API Key",
+      type: "password",
+    },
+    {
+      key: "dimensions",
+      label: "Dimensions",
+      type: "number",
+      placeholder: "Leave empty to use model default",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+    },
+    {
+      key: "batchSize",
+      label: "Batch Size",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+    },
+    {
+      key: "timeoutMs",
+      label: "Timeout (ms)",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+    },
+    {
+      key: "maxRetries",
+      label: "Max Retries",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n < 0) return "Must be zero or positive";
+        return undefined;
+      },
+    },
+  ],
+};
+
+const LLM_SECTION: SectionDef = {
+  key: "llm",
+  title: "Configure LLM provider settings",
+  successMessage: "LLM settings updated",
+  fields: [
+    {
+      key: "provider",
+      label: "Provider",
+      type: "select",
+      options: PROVIDER_OPTIONS,
+    },
+    {
+      key: "model",
+      label: "Model",
+      type: "text",
+      placeholder: DEFAULT_CONFIG.llm.model,
+    },
+    {
+      key: "baseUrl",
+      label: "Base URL",
+      type: "text",
+    },
+    {
+      key: "apiKey",
+      label: "API Key",
+      type: "password",
+    },
+    {
+      key: "temperature",
+      label: "Temperature",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n < 0 || n > 2) return "Must be between 0 and 2";
+        return undefined;
+      },
+    },
+    {
+      key: "maxTokens",
+      label: "Max Tokens",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+    },
+    {
+      key: "timeoutMs",
+      label: "Timeout (ms)",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+    },
+    {
+      key: "maxRetries",
+      label: "Max Retries",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n < 0) return "Must be zero or positive";
+        return undefined;
+      },
+    },
+  ],
+};
+
+const SYNC_SECTION: SectionDef = {
+  key: "sync",
+  title: "Configure sync settings",
+  successMessage: "Sync settings updated",
+  fields: [
+    {
+      key: "concurrency",
+      label: "Concurrency",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0 || !Number.isInteger(n)) {
+          return "Must be a positive integer";
+        }
+        return undefined;
+      },
+    },
+  ],
+};
+
+const IGNORE_SECTION: SectionDef = {
+  key: "ignore",
+  title: "Configure file ignore rules",
+  successMessage: "Ignore settings updated",
+  fields: [
+    {
+      key: "categories.vendor",
+      label: "Ignore vendor directories (node_modules, vendor, etc.)",
+      type: "boolean",
+    },
+    {
+      key: "categories.generated",
+      label: "Ignore generated files (dist, build, etc.)",
+      type: "boolean",
+    },
+    {
+      key: "categories.binary",
+      label: "Ignore binary files",
+      type: "boolean",
+    },
+    {
+      key: "categories.config",
+      label: "Ignore config files (.github, Dockerfile, etc.)",
+      type: "boolean",
+    },
+    {
+      key: "detectGenerated",
+      label: "Detect generated files automatically",
+      type: "boolean",
+    },
+    {
+      key: "additional",
+      label: "Additional ignore patterns (comma-separated)",
+      type: "text",
+      placeholder: "e.g., internal/, *.log",
+      parseList: true,
+      transform: {
+        toDisplay: (value) =>
+          Array.isArray(value) ? value.join(", ") : (value ?? ""),
+      },
+    },
+    {
+      key: "exceptions",
+      label: "Exceptions (comma-separated)",
+      type: "text",
+      placeholder: "e.g., !vendor/important/",
+      parseList: true,
+      transform: {
+        toDisplay: (value) =>
+          Array.isArray(value) ? value.join(", ") : (value ?? ""),
+      },
+    },
+  ],
+};
+
+const GENERAL_SECTION: SectionDef = {
+  key: "general",
+  title: "Configure general settings",
+  successMessage: "General settings updated",
+  fields: [
+    {
+      key: "maxFileSize",
+      label: "Max File Size (MB)",
+      type: "number",
+      validate: (v) => {
+        if (!v.trim()) return undefined;
+        const n = Number(v);
+        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
+        return undefined;
+      },
+      transform: {
+        toDisplay: (value) =>
+          typeof value === "number" ? value / (1024 * 1024) : value,
+        fromDisplay: (value) =>
+          typeof value === "number" ? value * 1024 * 1024 : value,
+      },
+    },
+  ],
+};
+
+function getValueByPath(source: Record<string, unknown>, key: string): unknown {
+  return key.split(".").reduce<unknown>((current, part) => {
+    if (current && typeof current === "object" && part in current) {
+      return (current as Record<string, unknown>)[part];
+    }
+    return undefined;
+  }, source);
+}
+
+function setValueByPath(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  const parts = key.split(".");
+  let cursor = target;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    const current = cursor[part];
+    if (!current || typeof current !== "object" || Array.isArray(current)) {
+      cursor[part] = {};
+    }
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+
+  cursor[parts[parts.length - 1]] = value;
+}
+
+function parseCommaSeparatedList(value: string): string[] {
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function getSectionCurrentAndDefaults(
+  state: TUIState,
+  section: SectionDef,
+): {
+  current: Record<string, unknown>;
+  defaults: Record<string, unknown>;
+} {
+  switch (section.key) {
+    case "embeddings":
+      return {
+        current: (state.config.embeddings ?? {}) as Record<string, unknown>,
+        defaults: DEFAULT_CONFIG.embeddings as unknown as Record<
+          string,
+          unknown
+        >,
+      };
+    case "llm":
+      return {
+        current: (state.config.llm ?? {}) as Record<string, unknown>,
+        defaults: DEFAULT_CONFIG.llm as unknown as Record<string, unknown>,
+      };
+    case "sync":
+      return {
+        current: (state.config.sync ?? {}) as Record<string, unknown>,
+        defaults: DEFAULT_CONFIG.sync as unknown as Record<string, unknown>,
+      };
+    case "ignore":
+      return {
+        current: (state.config.ignore ?? {}) as Record<string, unknown>,
+        defaults: DEFAULT_CONFIG.ignore as unknown as Record<string, unknown>,
+      };
+    case "general":
+      return {
+        current: { maxFileSize: state.config.maxFileSize },
+        defaults: { maxFileSize: DEFAULT_CONFIG.maxFileSize },
+      };
+  }
+}
+
+function getFieldPlaceholder(
+  section: SectionDef,
+  field: FieldDef,
+  values: Record<string, unknown>,
+): string | undefined {
+  if (
+    (section.key === "embeddings" || section.key === "llm") &&
+    field.key === "baseUrl"
+  ) {
+    return values.provider === "ollama"
+      ? OLLAMA_DEFAULT_BASE_URL
+      : "Leave empty for default";
+  }
+  return field.placeholder;
+}
+
+function getSelectInitialValue(
+  section: SectionDef,
+  field: FieldDef,
+  currentValue: unknown,
+  defaultValue: unknown,
+): string {
+  if (
+    section.key === "embeddings" &&
+    field.key === "provider" &&
+    currentValue === "anthropic"
+  ) {
+    return "openai";
+  }
+  return String(currentValue ?? defaultValue);
+}
+
+async function editSection(
+  state: TUIState,
+  section: SectionDef,
+): Promise<void> {
+  const { current, defaults } = getSectionCurrentAndDefaults(state, section);
+  const values: Record<string, unknown> = {};
+
+  p.note(
+    section.title,
+    section.key === "general"
+      ? "General"
+      : section.key === "llm"
+        ? "LLM"
+        : section.key.charAt(0).toUpperCase() + section.key.slice(1),
+  );
+
+  for (const field of section.fields) {
+    let currentValue = getValueByPath(current, field.key);
+    let defaultValue = getValueByPath(defaults, field.key);
+
+    if (field.transform?.toDisplay) {
+      currentValue = field.transform.toDisplay(currentValue);
+      defaultValue = field.transform.toDisplay(defaultValue);
+    }
+
+    if (
+      (section.key === "embeddings" || section.key === "llm") &&
+      field.key === "baseUrl" &&
+      values.provider === "ollama"
+    ) {
+      if (!current.baseUrl) {
+        p.note(
+          `Using default Ollama URL: ${OLLAMA_DEFAULT_BASE_URL}`,
+          "Ollama",
+        );
+      }
+      currentValue =
+        (currentValue as string | undefined) ?? OLLAMA_DEFAULT_BASE_URL;
+      defaultValue = OLLAMA_DEFAULT_BASE_URL;
+    }
+
+    if (field.type === "select") {
+      const result = await p.select({
+        message: `${field.label} (current: ${String(currentValue ?? defaultValue)})`,
+        options: field.options ?? [],
+        initialValue: getSelectInitialValue(
+          section,
+          field,
+          currentValue,
+          defaultValue,
+        ),
+      });
+
+      if (p.isCancel(result)) return;
+
+      setValueByPath(values, field.key, result);
+      continue;
+    }
+
+    const result = await editField<string | number | boolean>(
+      field.label,
+      currentValue as string | number | boolean | undefined,
+      (defaultValue ?? "") as string | number | boolean,
+      {
+        type: field.type,
+        validate: field.validate,
+        placeholder: getFieldPlaceholder(section, field, values),
+      },
+    );
+
+    if (result.cancelled) return;
+
+    let value: unknown = result.value;
+
+    if (field.parseList) {
+      value = typeof value === "string" ? parseCommaSeparatedList(value) : [];
+    }
+
+    if (field.transform?.fromDisplay && value !== undefined) {
+      value = field.transform.fromDisplay(value);
+    }
+
+    setValueByPath(values, field.key, value);
+  }
+
+  if (section.key === "embeddings") {
+    const provider =
+      (values.provider as ProviderType | undefined) ??
+      (current.provider as ProviderType | undefined) ??
+      DEFAULT_CONFIG.embeddings.provider;
+    const updated: Partial<EmbeddingsConfig> = { provider };
+
+    const model = values.model as string | undefined;
+    const baseUrl = values.baseUrl as string | undefined;
+    const apiKey = values.apiKey as string | undefined;
+    const dimensions = values.dimensions as number | undefined;
+    const batchSize = values.batchSize as number | undefined;
+    const timeoutMs = values.timeoutMs as number | undefined;
+    const maxRetries = values.maxRetries as number | undefined;
+
+    if (model && model !== DEFAULT_CONFIG.embeddings.model)
+      updated.model = model;
+    if (baseUrl) {
+      updated.baseUrl = baseUrl;
+    } else if (provider === "ollama") {
+      updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
+    }
+    if (apiKey) updated.apiKey = apiKey;
+    if (dimensions && dimensions > 0) updated.dimensions = dimensions;
+    if (batchSize && batchSize !== DEFAULT_CONFIG.embeddings.batchSize) {
+      updated.batchSize = batchSize;
+    }
+    if (timeoutMs && timeoutMs !== DEFAULT_CONFIG.embeddings.timeoutMs) {
+      updated.timeoutMs = timeoutMs;
+    }
+    if (
+      maxRetries !== undefined &&
+      maxRetries !== DEFAULT_CONFIG.embeddings.maxRetries
+    ) {
+      updated.maxRetries = maxRetries;
+    }
+
+    if (Object.keys(updated).length > 0) {
+      state.config.embeddings = {
+        ...state.config.embeddings,
+        ...updated,
+      } as EmbeddingsConfig;
+      state.hasChanges = true;
+      p.note(section.successMessage, "Success");
+    }
+    return;
+  }
+
+  if (section.key === "llm") {
+    const provider =
+      (values.provider as ProviderType | undefined) ??
+      (current.provider as ProviderType | undefined) ??
+      DEFAULT_CONFIG.llm.provider;
+    const updated: Partial<LLMConfig> = { provider };
+
+    const model = values.model as string | undefined;
+    const baseUrl = values.baseUrl as string | undefined;
+    const apiKey = values.apiKey as string | undefined;
+    const temperature = values.temperature as number | undefined;
+    const maxTokens = values.maxTokens as number | undefined;
+    const timeoutMs = values.timeoutMs as number | undefined;
+    const maxRetries = values.maxRetries as number | undefined;
+
+    if (model && model !== DEFAULT_CONFIG.llm.model) updated.model = model;
+    if (baseUrl) {
+      updated.baseUrl = baseUrl;
+    } else if (provider === "ollama") {
+      updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
+    }
+    if (apiKey) updated.apiKey = apiKey;
+    if (
+      temperature !== undefined &&
+      temperature !== DEFAULT_CONFIG.llm.temperature
+    ) {
+      updated.temperature = temperature;
+    }
+    if (maxTokens && maxTokens !== DEFAULT_CONFIG.llm.maxTokens) {
+      updated.maxTokens = maxTokens;
+    }
+    if (timeoutMs && timeoutMs !== DEFAULT_CONFIG.llm.timeoutMs) {
+      updated.timeoutMs = timeoutMs;
+    }
+    if (
+      maxRetries !== undefined &&
+      maxRetries !== DEFAULT_CONFIG.llm.maxRetries
+    ) {
+      updated.maxRetries = maxRetries;
+    }
+
+    if (Object.keys(updated).length > 0) {
+      state.config.llm = { ...state.config.llm, ...updated } as LLMConfig;
+      state.hasChanges = true;
+      p.note(section.successMessage, "Success");
+    }
+    return;
+  }
+
+  if (section.key === "sync") {
+    const updated: Partial<SyncConfig> = {};
+    const concurrency = values.concurrency as number | undefined;
+
+    if (concurrency && concurrency !== DEFAULT_CONFIG.sync.concurrency) {
+      updated.concurrency = concurrency;
+    }
+
+    if (Object.keys(updated).length > 0) {
+      state.config.sync = { ...state.config.sync, ...updated } as SyncConfig;
+      state.hasChanges = true;
+      p.note(section.successMessage, "Success");
+    }
+    return;
+  }
+
+  if (section.key === "ignore") {
+    const categories: IgnoreConfig["categories"] = {
+      vendor:
+        (getValueByPath(values, "categories.vendor") as boolean | undefined) ??
+        DEFAULT_CONFIG.ignore.categories.vendor,
+      generated:
+        (getValueByPath(values, "categories.generated") as
+          | boolean
+          | undefined) ?? DEFAULT_CONFIG.ignore.categories.generated,
+      binary:
+        (getValueByPath(values, "categories.binary") as boolean | undefined) ??
+        DEFAULT_CONFIG.ignore.categories.binary,
+      config:
+        (getValueByPath(values, "categories.config") as boolean | undefined) ??
+        DEFAULT_CONFIG.ignore.categories.config,
+    };
+
+    const updated: Partial<IgnoreConfig> = {
+      categories,
+      detectGenerated:
+        (values.detectGenerated as boolean | undefined) ??
+        DEFAULT_CONFIG.ignore.detectGenerated,
+    };
+
+    const additional = (values.additional as string[] | undefined) ?? [];
+    const exceptions = (values.exceptions as string[] | undefined) ?? [];
+
+    if (additional.length > 0) updated.additional = additional;
+    if (exceptions.length > 0) updated.exceptions = exceptions;
+
+    state.config.ignore = updated as IgnoreConfig;
+    state.hasChanges = true;
+    p.note(section.successMessage, "Success");
+    return;
+  }
+
+  const maxFileSize = values.maxFileSize as number | undefined;
+  if (maxFileSize && maxFileSize !== DEFAULT_CONFIG.maxFileSize) {
+    state.config.maxFileSize = maxFileSize;
+    state.hasChanges = true;
+    p.note(section.successMessage, "Success");
+  }
 }
 
 async function editField<T extends string | number | boolean>(
@@ -422,304 +1053,53 @@ async function editField<T extends string | number | boolean>(
   return { value: trimmed as T, cancelled: false };
 }
 
-async function editEmbeddings(state: TUIState): Promise<void> {
-  const current: Partial<EmbeddingsConfig> = state.config.embeddings ?? {};
-  const defaults = DEFAULT_CONFIG.embeddings;
-
-  p.note("Configure embeddings provider settings", "Embeddings");
-
-  const providerResult = await p.select({
-    message: `Provider (current: ${current.provider ?? defaults.provider})`,
-    options: PROVIDER_OPTIONS,
-    initialValue: current.provider ?? defaults.provider,
-  });
-  if (p.isCancel(providerResult)) return;
-  const provider = providerResult as ProviderType;
-
-  const modelResult = await editField<string>(
-    "Model",
-    current.model,
-    defaults.model,
-    {
-      type: "text",
-      placeholder: defaults.model,
-    },
-  );
-  if (modelResult.cancelled) return;
-  const model = modelResult.value;
-
-  const ollamaBaseUrl =
-    provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : undefined;
-  const currentBaseUrl =
-    current.baseUrl ?? (provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : "");
-
-  if (provider === "ollama" && !current.baseUrl) {
-    p.note(`Using default Ollama URL: ${OLLAMA_DEFAULT_BASE_URL}`, "Ollama");
-  }
-
-  const baseUrlResult = await editField<string>(
-    "Base URL",
-    currentBaseUrl || undefined,
-    ollamaBaseUrl ?? "",
-    {
-      type: "text",
-      placeholder:
-        provider === "ollama"
-          ? OLLAMA_DEFAULT_BASE_URL
-          : "Leave empty for default",
-    },
-  );
-  if (baseUrlResult.cancelled) return;
-  const baseUrl = baseUrlResult.value;
-
-  const apiKeyResult = await editField<string>("API Key", current.apiKey, "", {
-    type: "password",
-  });
-  if (apiKeyResult.cancelled) return;
-  const apiKey = apiKeyResult.value;
-
-  const dimensionsResult = await editField<number>(
-    "Dimensions",
-    current.dimensions,
-    0,
-    {
-      type: "number",
-      placeholder: "Leave empty to use model default",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
-  );
-  if (dimensionsResult.cancelled) return;
-  const dimensions = dimensionsResult.value;
-
-  const batchSizeResult = await editField<number>(
-    "Batch Size",
-    current.batchSize,
-    defaults.batchSize,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
-  );
-  if (batchSizeResult.cancelled) return;
-  const batchSize = batchSizeResult.value;
-
-  const timeoutMsResult = await editField<number>(
-    "Timeout (ms)",
-    current.timeoutMs,
-    defaults.timeoutMs,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
-  );
-  if (timeoutMsResult.cancelled) return;
-  const timeoutMs = timeoutMsResult.value;
-
-  const maxRetriesResult = await editField<number>(
-    "Max Retries",
-    current.maxRetries,
-    defaults.maxRetries,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n < 0) return "Must be zero or positive";
-        return undefined;
-      },
-    },
-  );
-  if (maxRetriesResult.cancelled) return;
-  const maxRetries = maxRetriesResult.value;
-
-  const updated: Partial<EmbeddingsConfig> = {};
-  updated.provider = provider;
-  if (model && model !== defaults.model) updated.model = model;
-  if (baseUrl) {
-    updated.baseUrl = baseUrl;
-  } else if (provider === "ollama") {
-    updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
-  }
-  if (apiKey) updated.apiKey = apiKey;
-  if (dimensions && dimensions > 0) updated.dimensions = dimensions;
-  if (batchSize && batchSize !== defaults.batchSize)
-    updated.batchSize = batchSize;
-  if (timeoutMs && timeoutMs !== defaults.timeoutMs)
-    updated.timeoutMs = timeoutMs;
-  if (maxRetries !== undefined && maxRetries !== defaults.maxRetries)
-    updated.maxRetries = maxRetries;
-
-  if (Object.keys(updated).length > 0) {
-    state.config.embeddings = {
-      ...state.config.embeddings,
-      ...updated,
-    } as EmbeddingsConfig;
-    state.hasChanges = true;
-    p.note("Embeddings settings updated", "Success");
-  }
-}
-
-async function editLLM(state: TUIState): Promise<void> {
-  const current: Partial<LLMConfig> = state.config.llm ?? {};
-  const defaults = DEFAULT_CONFIG.llm;
-
-  p.note("Configure LLM provider settings", "LLM");
-
-  const providerResult = await p.select({
-    message: `Provider (current: ${current.provider ?? defaults.provider})`,
-    options: PROVIDER_OPTIONS,
-    initialValue: current.provider ?? defaults.provider,
-  });
-  if (p.isCancel(providerResult)) return;
-  const provider = providerResult as ProviderType;
-
-  const modelResult = await editField<string>(
-    "Model",
-    current.model,
-    defaults.model,
-    {
-      type: "text",
-      placeholder: defaults.model,
-    },
-  );
-  if (modelResult.cancelled) return;
-  const model = modelResult.value;
-
-  const ollamaBaseUrl =
-    provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : undefined;
-  const currentBaseUrl =
-    current.baseUrl ?? (provider === "ollama" ? OLLAMA_DEFAULT_BASE_URL : "");
-
-  if (provider === "ollama" && !current.baseUrl) {
-    p.note(`Using default Ollama URL: ${OLLAMA_DEFAULT_BASE_URL}`, "Ollama");
-  }
-
-  const baseUrlResult = await editField<string>(
-    "Base URL",
-    currentBaseUrl || undefined,
-    ollamaBaseUrl ?? "",
-    {
-      type: "text",
-      placeholder:
-        provider === "ollama"
-          ? OLLAMA_DEFAULT_BASE_URL
-          : "Leave empty for default",
-    },
-  );
-  if (baseUrlResult.cancelled) return;
-  const baseUrl = baseUrlResult.value;
-
-  const apiKeyResult = await editField<string>("API Key", current.apiKey, "", {
-    type: "password",
-  });
-  if (apiKeyResult.cancelled) return;
-  const apiKey = apiKeyResult.value;
-
-  const temperatureResult = await editField<number>(
-    "Temperature",
-    current.temperature,
-    defaults.temperature,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n < 0 || n > 2) return "Must be between 0 and 2";
-        return undefined;
-      },
-    },
-  );
-  if (temperatureResult.cancelled) return;
-  const temperature = temperatureResult.value;
-
-  const maxTokensResult = await editField<number>(
-    "Max Tokens",
-    current.maxTokens,
-    defaults.maxTokens,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
-  );
-  if (maxTokensResult.cancelled) return;
-  const maxTokens = maxTokensResult.value;
-
-  const timeoutMsResult = await editField<number>(
-    "Timeout (ms)",
-    current.timeoutMs,
-    defaults.timeoutMs,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
-  );
-  if (timeoutMsResult.cancelled) return;
-  const timeoutMs = timeoutMsResult.value;
-
-  const maxRetriesResult = await editField<number>(
-    "Max Retries",
-    current.maxRetries,
-    defaults.maxRetries,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n < 0) return "Must be zero or positive";
-        return undefined;
-      },
-    },
-  );
-  if (maxRetriesResult.cancelled) return;
-  const maxRetries = maxRetriesResult.value;
-
-  const updated: Partial<LLMConfig> = {};
-  updated.provider = provider;
-  if (model && model !== defaults.model) updated.model = model;
-  if (baseUrl) {
-    updated.baseUrl = baseUrl;
-  } else if (provider === "ollama") {
-    updated.baseUrl = OLLAMA_DEFAULT_BASE_URL;
-  }
-  if (apiKey) updated.apiKey = apiKey;
-  if (temperature !== undefined && temperature !== defaults.temperature)
-    updated.temperature = temperature;
-  if (maxTokens && maxTokens !== defaults.maxTokens)
-    updated.maxTokens = maxTokens;
-  if (timeoutMs && timeoutMs !== defaults.timeoutMs)
-    updated.timeoutMs = timeoutMs;
-  if (maxRetries !== undefined && maxRetries !== defaults.maxRetries)
-    updated.maxRetries = maxRetries;
-
-  if (Object.keys(updated).length > 0) {
-    state.config.llm = { ...state.config.llm, ...updated } as LLMConfig;
-    state.hasChanges = true;
-    p.note("LLM settings updated", "Success");
+async function testQdrantConnection(
+  url: string,
+  apiKey?: string,
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (apiKey) headers["api-key"] = apiKey;
+    const response = await fetch(`${url.replace(/\/$/, "")}/healthz`, {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) {
+      return { ok: true, message: "Connected successfully!" };
+    }
+    return { ok: false, message: `Server returned HTTP ${response.status}` };
+  } catch (error) {
+    // Node.js fetch wraps errors: error.message="fetch failed", actual error in error.cause
+    const causeErr =
+      error instanceof Error && error.cause instanceof Error
+        ? error.cause
+        : null;
+    const causeCode = (causeErr as NodeJS.ErrnoException | null)?.code ?? "";
+    const causeMsg = causeErr?.message ?? "";
+    const msg =
+      causeMsg || (error instanceof Error ? error.message : String(error));
+    const combined = `${msg} ${causeCode}`;
+    if (combined.includes("abort") || combined.includes("timeout")) {
+      return { ok: false, message: "Connection timed out (5s)" };
+    }
+    if (combined.includes("ECONNREFUSED")) {
+      return { ok: false, message: "Connection refused — is Qdrant running?" };
+    }
+    if (combined.includes("ENOTFOUND")) {
+      return { ok: false, message: "Host not found — check the URL" };
+    }
+    if (combined.includes("ECONNRESET") || combined.includes("EPIPE")) {
+      return {
+        ok: false,
+        message: "Connection reset — server may be starting up",
+      };
+    }
+    return {
+      ok: false,
+      message: msg || "Connection failed — check URL and network",
+    };
   }
 }
 
@@ -727,29 +1107,81 @@ async function editQdrant(state: TUIState): Promise<void> {
   const current: Partial<QdrantConfig> = state.config.qdrant ?? {};
   const defaults = DEFAULT_CONFIG.qdrant;
 
-  p.note("Configure Qdrant vector database settings", "Qdrant");
+  p.note("Configure Qdrant vector database connection", "Qdrant");
 
-  const urlResult = await editField<string>("URL", current.url, defaults.url, {
-    type: "text",
-    placeholder: defaults.url,
-    validate: (v) => {
-      if (!v.trim()) return undefined;
-      try {
-        new URL(v);
+  const instanceType = await p.select({
+    message: "How is your Qdrant instance running?",
+    options: [
+      {
+        value: "local" as const,
+        label: "Local",
+        hint: "Docker or native on this machine (localhost)",
+      },
+      {
+        value: "remote" as const,
+        label: "Remote / Cloud",
+        hint: "Qdrant Cloud or self-hosted remote server",
+      },
+    ],
+  });
+  if (p.isCancel(instanceType)) return;
+
+  let url: string;
+  let apiKey: string | undefined;
+
+  if (instanceType === "local") {
+    const portResult = await p.text({
+      message: "Qdrant port:",
+      initialValue: current.url ? new URL(current.url).port || "6333" : "6333",
+      placeholder: "6333",
+      validate: (v) => {
+        const n = Number(v.trim());
+        if (
+          !v.trim() ||
+          Number.isNaN(n) ||
+          n < 1 ||
+          n > 65535 ||
+          !Number.isInteger(n)
+        ) {
+          return "Must be a valid port number (1-65535)";
+        }
         return undefined;
-      } catch {
-        return "Must be a valid URL";
-      }
-    },
-  });
-  if (urlResult.cancelled) return;
-  const url = urlResult.value;
+      },
+    });
+    if (p.isCancel(portResult)) return;
+    const port = portResult.trim() || "6333";
+    url = `http://localhost:${port}`;
+    apiKey = undefined;
+  } else {
+    const urlResult = await p.text({
+      message: "Qdrant URL:",
+      initialValue:
+        current.url && current.url !== defaults.url ? current.url : "",
+      placeholder: "https://your-instance.cloud.qdrant.io:6333",
+      validate: (v) => {
+        if (!v.trim()) return "URL is required for remote instances";
+        try {
+          new URL(v.trim());
+          return undefined;
+        } catch {
+          return "Must be a valid URL (e.g., https://host:6333)";
+        }
+      },
+    });
+    if (p.isCancel(urlResult)) return;
+    url = urlResult.trim();
 
-  const apiKeyResult = await editField<string>("API Key", current.apiKey, "", {
-    type: "password",
-  });
-  if (apiKeyResult.cancelled) return;
-  const apiKey = apiKeyResult.value;
+    const apiKeyResult = await p.password({
+      message: "Qdrant API Key:",
+      validate: (v) => {
+        if (!v || !v.trim())
+          return "API key is required for remote Qdrant instances";
+        return undefined;
+      },
+    });
+    if (p.isCancel(apiKeyResult)) return;
+    apiKey = apiKeyResult?.trim() || undefined;
+  }
 
   const collectionPrefixResult = await editField<string>(
     "Collection Prefix",
@@ -763,272 +1195,162 @@ async function editQdrant(state: TUIState): Promise<void> {
   if (collectionPrefixResult.cancelled) return;
   const collectionPrefix = collectionPrefixResult.value;
 
-  const updated: Partial<QdrantConfig> = {};
-  if (url && url !== defaults.url) updated.url = url;
+  const shouldTest = await p.confirm({
+    message: "Test connection now?",
+    initialValue: true,
+  });
+
+  if (!p.isCancel(shouldTest) && shouldTest) {
+    const spinner = p.spinner();
+    spinner.start(`Connecting to ${url}...`);
+    const result = await testQdrantConnection(url, apiKey);
+    if (result.ok) {
+      spinner.stop(chalk.green(`✓ ${result.message}`));
+    } else {
+      spinner.stop(chalk.red(`✗ ${result.message}`));
+      const proceed = await p.confirm({
+        message: "Connection failed. Save settings anyway?",
+        initialValue: false,
+      });
+      if (p.isCancel(proceed) || !proceed) return;
+    }
+  }
+
+  const updated: Partial<QdrantConfig> = { url };
   if (apiKey) updated.apiKey = apiKey;
-  if (collectionPrefix && collectionPrefix !== defaults.collectionPrefix)
+  if (collectionPrefix && collectionPrefix !== defaults.collectionPrefix) {
     updated.collectionPrefix = collectionPrefix;
-
-  if (Object.keys(updated).length > 0) {
-    state.config.qdrant = {
-      ...state.config.qdrant,
-      ...updated,
-    } as QdrantConfig;
-    state.hasChanges = true;
-    p.note("Qdrant settings updated", "Success");
   }
-}
 
-async function editSync(state: TUIState): Promise<void> {
-  const current: Partial<SyncConfig> = state.config.sync ?? {};
-  const defaults = DEFAULT_CONFIG.sync;
-
-  p.note("Configure sync settings", "Sync");
-
-  const concurrencyResult = await editField<number>(
-    "Concurrency",
-    current.concurrency,
-    defaults.concurrency,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0 || !Number.isInteger(n))
-          return "Must be a positive integer";
-        return undefined;
-      },
-    },
-  );
-  if (concurrencyResult.cancelled) return;
-  const concurrency = concurrencyResult.value;
-
-  const updated: Partial<SyncConfig> = {};
-  if (concurrency && concurrency !== defaults.concurrency)
-    updated.concurrency = concurrency;
-
-  if (Object.keys(updated).length > 0) {
-    state.config.sync = { ...state.config.sync, ...updated } as SyncConfig;
-    state.hasChanges = true;
-    p.note("Sync settings updated", "Success");
-  }
-}
-
-async function editTavily(state: TUIState): Promise<void> {
-  const current: Partial<TavilyConfig> = state.config.tavily ?? {};
-  const defaults = DEFAULT_CONFIG.tavily;
-
-  p.note("Configure Tavily web search settings", "Tavily");
-
-  const apiKeyResult = await editField<string>("API Key", current.apiKey, "", {
-    type: "password",
-  });
-  if (apiKeyResult.cancelled) return;
-  const apiKey = apiKeyResult.value;
-
-  const maxResultsResult = await editField<number>(
-    "Max Results",
-    current.maxResults,
-    defaults.maxResults,
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0 || !Number.isInteger(n))
-          return "Must be a positive integer";
-        return undefined;
-      },
-    },
-  );
-  if (maxResultsResult.cancelled) return;
-  const maxResults = maxResultsResult.value;
-
-  const searchDepthResult = await p.select({
-    message: `Search Depth (current: ${current.searchDepth ?? defaults.searchDepth})`,
-    options: SEARCH_DEPTH_OPTIONS,
-    initialValue: current.searchDepth ?? defaults.searchDepth,
-  });
-  if (p.isCancel(searchDepthResult)) return;
-  const searchDepth = searchDepthResult as "basic" | "advanced";
-
-  const includeImagesResult = await editField<boolean>(
-    "Include Images",
-    current.includeImages,
-    defaults.includeImages,
-    {
-      type: "boolean",
-    },
-  );
-  if (includeImagesResult.cancelled) return;
-  const includeImages = includeImagesResult.value;
-
-  const includeRawContentResult = await editField<boolean>(
-    "Include Raw Content",
-    current.includeRawContent,
-    defaults.includeRawContent,
-    {
-      type: "boolean",
-    },
-  );
-  if (includeRawContentResult.cancelled) return;
-  const includeRawContent = includeRawContentResult.value;
-
-  const updated: Partial<TavilyConfig> = {};
-  if (apiKey) updated.apiKey = apiKey;
-  if (maxResults && maxResults !== defaults.maxResults)
-    updated.maxResults = maxResults;
-  if (searchDepth !== defaults.searchDepth) updated.searchDepth = searchDepth;
-  if (includeImages !== undefined && includeImages !== defaults.includeImages)
-    updated.includeImages = includeImages;
-  if (
-    includeRawContent !== undefined &&
-    includeRawContent !== defaults.includeRawContent
-  )
-    updated.includeRawContent = includeRawContent;
-
-  if (Object.keys(updated).length > 0) {
-    state.config.tavily = {
-      ...state.config.tavily,
-      ...updated,
-    } as TavilyConfig;
-    state.hasChanges = true;
-    p.note("Tavily settings updated", "Success");
-  }
-}
-
-async function editIgnore(state: TUIState): Promise<void> {
-  const current: Partial<IgnoreConfig> = state.config.ignore ?? {};
-  const defaults = DEFAULT_CONFIG.ignore;
-
-  p.note("Configure file ignore rules", "Ignore");
-
-  const vendorResult = await editField<boolean>(
-    "Ignore vendor directories (node_modules, vendor, etc.)",
-    current.categories?.vendor,
-    defaults.categories.vendor,
-    { type: "boolean" },
-  );
-  if (vendorResult.cancelled) return;
-  const vendor = vendorResult.value;
-
-  const generatedResult = await editField<boolean>(
-    "Ignore generated files (dist, build, etc.)",
-    current.categories?.generated,
-    defaults.categories.generated,
-    { type: "boolean" },
-  );
-  if (generatedResult.cancelled) return;
-  const generated = generatedResult.value;
-
-  const binaryResult = await editField<boolean>(
-    "Ignore binary files",
-    current.categories?.binary,
-    defaults.categories.binary,
-    { type: "boolean" },
-  );
-  if (binaryResult.cancelled) return;
-  const binary = binaryResult.value;
-
-  const configResult = await editField<boolean>(
-    "Ignore config files (.github, Dockerfile, etc.)",
-    current.categories?.config,
-    defaults.categories.config,
-    { type: "boolean" },
-  );
-  if (configResult.cancelled) return;
-  const config = configResult.value;
-
-  const detectGeneratedResult = await editField<boolean>(
-    "Detect generated files automatically",
-    current.detectGenerated,
-    defaults.detectGenerated,
-    { type: "boolean" },
-  );
-  if (detectGeneratedResult.cancelled) return;
-  const detectGenerated = detectGeneratedResult.value;
-
-  const additionalStrResult = await editField<string>(
-    "Additional ignore patterns (comma-separated)",
-    current.additional?.join(", "),
-    "",
-    { type: "text", placeholder: "e.g., internal/, *.log" },
-  );
-  if (additionalStrResult.cancelled) return;
-  const additionalStr = additionalStrResult.value;
-
-  const exceptionsStrResult = await editField<string>(
-    "Exceptions (comma-separated)",
-    current.exceptions?.join(", "),
-    "",
-    { type: "text", placeholder: "e.g., !vendor/important/" },
-  );
-  if (exceptionsStrResult.cancelled) return;
-  const exceptionsStr = exceptionsStrResult.value;
-
-  const categories: IgnoreConfig["categories"] = {
-    vendor: vendor ?? defaults.categories.vendor,
-    generated: generated ?? defaults.categories.generated,
-    binary: binary ?? defaults.categories.binary,
-    config: config ?? defaults.categories.config,
-  };
-
-  const additional = additionalStr
-    ? additionalStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-
-  const exceptions = exceptionsStr
-    ? exceptionsStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-
-  const updated: Partial<IgnoreConfig> = {
-    categories,
-    detectGenerated: detectGenerated ?? defaults.detectGenerated,
-  };
-
-  if (additional.length > 0) updated.additional = additional;
-  if (exceptions.length > 0) updated.exceptions = exceptions;
-
-  state.config.ignore = updated as IgnoreConfig;
+  state.config.qdrant = { ...state.config.qdrant, ...updated } as QdrantConfig;
   state.hasChanges = true;
-  p.note("Ignore settings updated", "Success");
+  p.note("Qdrant settings updated", "Success");
 }
 
-async function editGeneral(state: TUIState): Promise<void> {
-  const defaults = DEFAULT_CONFIG;
-
-  p.note("Configure general settings", "General");
-
-  const maxFileSizeMBResult = await editField<number>(
-    "Max File Size (MB)",
-    state.config.maxFileSize
-      ? state.config.maxFileSize / (1024 * 1024)
-      : undefined,
-    defaults.maxFileSize / (1024 * 1024),
-    {
-      type: "number",
-      validate: (v) => {
-        if (!v.trim()) return undefined;
-        const n = Number(v);
-        if (Number.isNaN(n) || n <= 0) return "Must be a positive number";
-        return undefined;
-      },
-    },
+export async function runSetupWizard(state: TUIState): Promise<void> {
+  p.note(
+    "This wizard will guide you through the essential configuration.\n" +
+      "You can always fine-tune settings later via the main menu.",
+    "Quick Setup",
   );
-  if (maxFileSizeMBResult.cancelled) return;
-  const maxFileSizeMB = maxFileSizeMBResult.value;
 
-  if (maxFileSizeMB && maxFileSizeMB !== defaults.maxFileSize / (1024 * 1024)) {
-    state.config.maxFileSize = maxFileSizeMB * 1024 * 1024;
-    state.hasChanges = true;
-    p.note("General settings updated", "Success");
+  p.note("Step 1 of 3: Vector Database", "Qdrant");
+  await editQdrant(state);
+  if (!state.hasChanges) return;
+
+  p.note(
+    "Step 2 of 3: Embeddings Provider\n\nEmbeddings convert your code into searchable vectors.",
+    "Embeddings",
+  );
+
+  const embProvider = await p.select({
+    message: "Select embeddings provider:",
+    options: EMBEDDINGS_PROVIDER_OPTIONS,
+    initialValue:
+      state.config.embeddings?.provider ?? DEFAULT_CONFIG.embeddings.provider,
+  });
+  if (p.isCancel(embProvider)) return;
+
+  const embeddingsUpdate: Partial<EmbeddingsConfig> = {
+    provider: embProvider as ProviderType,
+  };
+
+  if (embProvider === "ollama") {
+    const baseUrl = state.config.embeddings?.baseUrl ?? OLLAMA_DEFAULT_BASE_URL;
+    p.note(`Using Ollama at ${baseUrl}`, "Ollama");
+
+    const modelResult = await p.text({
+      message: "Embeddings model:",
+      initialValue: state.config.embeddings?.model ?? "nomic-embed-text",
+      placeholder: "nomic-embed-text",
+    });
+    if (p.isCancel(modelResult)) return;
+    embeddingsUpdate.model = modelResult.trim() || "nomic-embed-text";
+    embeddingsUpdate.baseUrl = baseUrl;
+  } else {
+    const apiKeyResult = await p.password({
+      message: `${embProvider === "openai" ? "OpenAI" : "Google"} API Key for embeddings:`,
+    });
+    if (p.isCancel(apiKeyResult)) return;
+    if (apiKeyResult?.trim()) embeddingsUpdate.apiKey = apiKeyResult.trim();
   }
+
+  state.config.embeddings = {
+    ...state.config.embeddings,
+    ...embeddingsUpdate,
+  } as EmbeddingsConfig;
+  state.hasChanges = true;
+
+  p.note(
+    "Step 3 of 3: LLM Provider\n\nThe LLM generates answers from your code (RAG).",
+    "LLM",
+  );
+
+  const llmProvider = await p.select({
+    message: "Select LLM provider:",
+    options: PROVIDER_OPTIONS,
+    initialValue: state.config.llm?.provider ?? DEFAULT_CONFIG.llm.provider,
+  });
+  if (p.isCancel(llmProvider)) return;
+
+  const llmUpdate: Partial<LLMConfig> = {
+    provider: llmProvider as ProviderType,
+  };
+
+  if (llmProvider === "anthropic") {
+    p.note(
+      "Note: Anthropic does not provide embeddings.\n" +
+        "Your embeddings provider is set separately (Step 2).",
+      "Anthropic",
+    );
+  }
+
+  if (llmProvider === "ollama") {
+    const baseUrl = state.config.llm?.baseUrl ?? OLLAMA_DEFAULT_BASE_URL;
+    p.note(`Using Ollama at ${baseUrl}`, "Ollama");
+
+    const modelResult = await p.text({
+      message: "LLM model:",
+      initialValue: state.config.llm?.model ?? "llama3.2",
+      placeholder: "llama3.2",
+    });
+    if (p.isCancel(modelResult)) return;
+    llmUpdate.model = modelResult.trim() || "llama3.2";
+    llmUpdate.baseUrl = baseUrl;
+  } else {
+    const sameProvider = embProvider === llmProvider;
+    const existingKey = sameProvider
+      ? state.config.embeddings?.apiKey
+      : undefined;
+
+    if (existingKey) {
+      const reuseKey = await p.confirm({
+        message: `Reuse the ${llmProvider} API key from embeddings?`,
+        initialValue: true,
+      });
+      if (p.isCancel(reuseKey)) return;
+      if (reuseKey) {
+        llmUpdate.apiKey = existingKey;
+      } else {
+        const apiKeyResult = await p.password({
+          message: `${llmProvider.charAt(0).toUpperCase() + llmProvider.slice(1)} API Key for LLM:`,
+        });
+        if (p.isCancel(apiKeyResult)) return;
+        if (apiKeyResult?.trim()) llmUpdate.apiKey = apiKeyResult.trim();
+      }
+    } else {
+      const apiKeyResult = await p.password({
+        message: `${llmProvider.charAt(0).toUpperCase() + llmProvider.slice(1)} API Key for LLM:`,
+      });
+      if (p.isCancel(apiKeyResult)) return;
+      if (apiKeyResult?.trim()) llmUpdate.apiKey = apiKeyResult.trim();
+    }
+  }
+
+  state.config.llm = { ...state.config.llm, ...llmUpdate } as LLMConfig;
+  state.hasChanges = true;
+
+  await saveConfig(state);
 }
 
 export async function runConfigTUI(
@@ -1050,7 +1372,21 @@ export async function runConfigTUI(
   }
 
   const state = initTUIState(target, cwd);
-  await mainMenuLoop(state);
 
+  const isEmptyConfig = Object.keys(state.config).length === 0;
+  if (isEmptyConfig) {
+    const useWizard = await p.confirm({
+      message: "No configuration found. Run the quick setup wizard?",
+      initialValue: true,
+    });
+
+    if (!p.isCancel(useWizard) && useWizard) {
+      await runSetupWizard(state);
+      p.outro("Configuration complete!");
+      return;
+    }
+  }
+
+  await mainMenuLoop(state);
   p.outro("Configuration complete!");
 }
