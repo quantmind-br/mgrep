@@ -18,13 +18,6 @@ vi.mock("./config.js", () => ({
       model: "gpt-4o-mini",
       apiKey: "test-llm-key",
     },
-    tavily: {
-      apiKey: "test-tavily-key",
-      maxResults: 10,
-      searchDepth: "basic",
-      includeImages: false,
-      includeRawContent: false,
-    },
   })),
 }));
 
@@ -56,14 +49,9 @@ vi.mock("./providers/index.js", () => ({
 }));
 
 // Import after mocks
-import {
-  createFileSystem,
-  createGit,
-  createWebSearchClientFromConfig,
-} from "./context.js";
+import { createFileSystem, createGit } from "./context.js";
 import { NodeFileSystem } from "./file.js";
 import { NodeGit } from "./git.js";
-import { TavilyClient } from "./providers/web/tavily.js";
 
 describe("context", () => {
   const originalEnv = process.env;
@@ -87,7 +75,7 @@ describe("context", () => {
       // Clear the module cache and re-import
       vi.resetModules();
       const { createStore } = await import("./context.js");
-      const { TestStore } = await import("./store.js");
+      const { TestStore } = await import("./test-store.js");
 
       const store = await createStore();
 
@@ -100,7 +88,7 @@ describe("context", () => {
       vi.resetModules();
       const { createStore } = await import("./context.js");
       const { QdrantStore } = await import("./qdrant-store.js");
-      const { TestStore } = await import("./store.js");
+      const { TestStore } = await import("./test-store.js");
 
       const store = await createStore();
 
@@ -174,62 +162,6 @@ describe("context", () => {
       const fs = createFileSystem();
 
       expect(fs).toBeInstanceOf(NodeFileSystem);
-    });
-  });
-
-  describe("createWebSearchClientFromConfig", () => {
-    it("should create TavilyClient with config", () => {
-      const client = createWebSearchClientFromConfig({
-        apiKey: "test-api-key",
-        maxResults: 10,
-        searchDepth: "basic",
-        includeImages: false,
-        includeRawContent: false,
-      });
-
-      expect(client).toBeInstanceOf(TavilyClient);
-    });
-
-    it("should pass all config options to client", () => {
-      const config = {
-        apiKey: "test-api-key",
-        maxResults: 20,
-        searchDepth: "advanced" as const,
-        includeImages: true,
-        includeRawContent: true,
-      };
-
-      const client = createWebSearchClientFromConfig(config);
-
-      expect(client).toBeInstanceOf(TavilyClient);
-    });
-
-    it("should throw if apiKey is missing and no env var", () => {
-      delete process.env.MGREP_TAVILY_API_KEY;
-
-      expect(() =>
-        createWebSearchClientFromConfig({
-          apiKey: undefined,
-          maxResults: 10,
-          searchDepth: "basic",
-          includeImages: false,
-          includeRawContent: false,
-        }),
-      ).toThrow("Tavily API key is required");
-    });
-
-    it("should use env var when apiKey is undefined", () => {
-      process.env.MGREP_TAVILY_API_KEY = "env-api-key";
-
-      const client = createWebSearchClientFromConfig({
-        apiKey: undefined,
-        maxResults: 10,
-        searchDepth: "basic",
-        includeImages: false,
-        includeRawContent: false,
-      });
-
-      expect(client).toBeInstanceOf(TavilyClient);
     });
   });
 });

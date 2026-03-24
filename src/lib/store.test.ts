@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { TestStore } from "./store.js";
+import { TestStore } from "./test-store.js";
 
 describe("TestStore", () => {
   let tempDir: string;
