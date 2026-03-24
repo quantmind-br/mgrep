@@ -12,7 +12,6 @@ import {
   initialSync,
   isDevelopment,
   isTest,
-  listStoreFileHashes,
   listStoreFileMetadata,
   uploadFile,
 } from "./utils.js";
@@ -59,11 +58,16 @@ function createMockConfig(overrides?: Partial<MgrepConfig>): MgrepConfig {
     sync: {
       concurrency: 20,
     },
-    tavily: {
-      maxResults: 10,
-      searchDepth: "basic",
-      includeImages: false,
-      includeRawContent: false,
+    ignore: {
+      categories: {
+        vendor: true,
+        generated: true,
+        binary: true,
+        config: false,
+      },
+      additional: [],
+      exceptions: [],
+      detectGenerated: true,
     },
     ...overrides,
   };
@@ -259,44 +263,6 @@ describe("utils", () => {
 
       expect(result.size).toBe(1);
       expect(result.get("file2.txt")).toBeDefined();
-    });
-  });
-
-  describe("listStoreFileHashes", () => {
-    it("should return map of external_id to hash", async () => {
-      const mockStore = {
-        listFiles: async function* () {
-          yield {
-            external_id: "file1.txt",
-            metadata: { path: "/path/file1.txt", hash: "hash1" },
-          };
-          yield {
-            external_id: "file2.txt",
-            metadata: { path: "/path/file2.txt", hash: "hash2" },
-          };
-        },
-      } as unknown as Store;
-
-      const result = await listStoreFileHashes(mockStore, "test-store");
-
-      expect(result.size).toBe(2);
-      expect(result.get("file1.txt")).toBe("hash1");
-      expect(result.get("file2.txt")).toBe("hash2");
-    });
-
-    it("should handle undefined hash", async () => {
-      const mockStore = {
-        listFiles: async function* () {
-          yield {
-            external_id: "file1.txt",
-            metadata: { path: "/path/file1.txt", hash: undefined },
-          };
-        },
-      } as unknown as Store;
-
-      const result = await listStoreFileHashes(mockStore, "test-store");
-
-      expect(result.get("file1.txt")).toBeUndefined();
     });
   });
 

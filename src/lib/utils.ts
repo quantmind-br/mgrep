@@ -85,24 +85,6 @@ export async function listStoreFileMetadata(
   return byExternalId;
 }
 
-/**
- * Lists file hashes from the store, optionally filtered by path prefix.
- * @deprecated Use listStoreFileMetadata instead for better sync optimization
- *
- * @param store - The store instance
- * @param storeId - The ID of the store
- * @param pathPrefix - Optional path prefix to filter files (only files starting with this path are returned)
- * @returns A map of external IDs to their hashes
- */
-export async function listStoreFileHashes(
-  store: Store,
-  storeId: string,
-  pathPrefix?: string,
-): Promise<Map<string, string | undefined>> {
-  const metadata = await listStoreFileMetadata(store, storeId, pathPrefix);
-  return new Map(Array.from(metadata.entries()).map(([k, v]) => [k, v.hash]));
-}
-
 export async function deleteFile(
   store: Store,
   storeId: string,

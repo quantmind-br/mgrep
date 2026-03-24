@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_IGNORE_PATTERNS, NodeFileSystem } from "./file.js";
+import { NodeFileSystem } from "./file.js";
 import type { Git } from "./git.js";
 
 describe("file", () => {
@@ -15,18 +15,6 @@ describe("file", () => {
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
     vi.clearAllMocks();
-  });
-
-  describe("DEFAULT_IGNORE_PATTERNS", () => {
-    it("should include common binary and lock patterns", () => {
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.lock");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.bin");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.ipynb");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.pyc");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.safetensors");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.sqlite");
-      expect(DEFAULT_IGNORE_PATTERNS).toContain("*.pt");
-    });
   });
 
   describe("NodeFileSystem", () => {

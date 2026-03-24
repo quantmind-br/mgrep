@@ -6,20 +6,6 @@ import type { Git } from "./git.js";
 import { getDefaultIgnorePatterns } from "./ignore-patterns.js";
 
 /**
- * Default glob patterns to ignore during file indexing.
- * @deprecated Use ignore-patterns.ts instead
- */
-export const DEFAULT_IGNORE_PATTERNS: readonly string[] = [
-  "*.lock",
-  "*.bin",
-  "*.ipynb",
-  "*.pyc",
-  "*.safetensors",
-  "*.sqlite",
-  "*.pt",
-];
-
-/**
  * Configuration options for file system operations
  */
 export interface FileSystemOptions {
@@ -91,7 +77,7 @@ export class NodeFileSystem implements FileSystem {
       }
     } else {
       // Fallback for backward compatibility (e.g. tests without config)
-      this.customIgnoreFilter.add(DEFAULT_IGNORE_PATTERNS);
+      this.customIgnoreFilter.add(getDefaultIgnorePatterns());
     }
 
     // Add legacy ignorePatterns (CLI overrides) on top
