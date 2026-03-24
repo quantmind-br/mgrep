@@ -2,12 +2,9 @@ import { join, normalize } from "node:path";
 import type { Command } from "commander";
 import { Command as CommanderCommand } from "commander";
 import { copyToClipboard } from "../lib/clipboard.js";
-import {
-  type CliConfigOptions,
-  loadConfig,
-  type MgrepConfig,
-} from "../lib/config.js";
-import { createFileSystem, createStore } from "../lib/context.js";
+import type { CliConfigOptions, MgrepConfig } from "../lib/config.js";
+import { createCommandContext } from "../lib/context.js";
+import type { FileSystem } from "../lib/file.js";
 import {
   type ContextFormat,
   ContextFormatter,
@@ -30,6 +27,7 @@ interface ContextOptions {
 
 async function syncFiles(
   store: Store,
+  fileSystem: FileSystem,
   storeName: string,
   root: string,
   dryRun: boolean,
@@ -38,10 +36,6 @@ async function syncFiles(
   const { spinner, onProgress } = createIndexingSpinner(root);
 
   try {
-    const fileSystem = createFileSystem({
-      ignorePatterns: [],
-      ignoreConfig: config?.ignore,
-    });
     await initialSync(
       store,
       fileSystem,
@@ -99,13 +93,22 @@ export const context: Command = new CommanderCommand("context")
 
       const root = process.cwd();
       const cliOptions: CliConfigOptions = {};
-      const config = loadConfig(root, cliOptions);
 
       try {
-        const store = await createStore();
+        const { config, store, fileSystem } = await createCommandContext(
+          root,
+          cliOptions,
+        );
 
         if (opts.sync) {
-          await syncFiles(store, opts.store, root, opts.dryRun, config);
+          await syncFiles(
+            store,
+            fileSystem,
+            opts.store,
+            root,
+            opts.dryRun,
+            config,
+          );
         }
 
         const searchPath = execPath?.startsWith("/")

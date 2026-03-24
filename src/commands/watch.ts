@@ -5,10 +5,15 @@ import {
   type CliConfigOptions,
   getConfigPaths,
   loadConfig,
-  type MgrepConfig,
   reloadConfig,
 } from "../lib/config.js";
-import { createFileSystem, createStore } from "../lib/context.js";
+import {
+  createCommandContext,
+  createFileSystem,
+  createStore,
+} from "../lib/context.js";
+import type { FileSystem } from "../lib/file.js";
+import type { Store } from "../lib/store.js";
 import {
   createIndexingSpinner,
   formatDryRunSummary,
@@ -25,23 +30,32 @@ export interface WatchOptions {
 
 export async function startWatch(options: WatchOptions): Promise<void> {
   try {
-    const store = await createStore();
-
     const watchRoot = process.cwd();
     const cliOptions: CliConfigOptions = {
       maxFileSize: options.maxFileSize,
     };
 
-    // Mutable config that can be reloaded
-    let currentConfig: MgrepConfig = loadConfig(watchRoot, cliOptions);
-    console.debug("Watching for file changes in", watchRoot);
-
-    const fileSystem = createFileSystem({
+    let root = watchRoot;
+    let initialConfig = loadConfig(watchRoot, cliOptions);
+    let fileSystem: FileSystem = createFileSystem({
       ignorePatterns: [],
-      ignoreConfig: currentConfig.ignore,
+      ignoreConfig: initialConfig.ignore,
     });
+    let store: Store = await createStore();
 
-    const { spinner, onProgress } = createIndexingSpinner(watchRoot);
+    try {
+      const context = await createCommandContext(watchRoot, cliOptions);
+      root = context.root;
+      initialConfig = context.config;
+      fileSystem = context.fileSystem;
+      store = context.store;
+    } catch {}
+
+    // Mutable config that can be reloaded
+    let currentConfig = initialConfig;
+    console.debug("Watching for file changes in", root);
+
+    const { spinner, onProgress } = createIndexingSpinner(root);
     try {
       try {
         await store.retrieve(options.store);
@@ -56,7 +70,7 @@ export async function startWatch(options: WatchOptions): Promise<void> {
         store,
         fileSystem,
         options.store,
-        watchRoot,
+        root,
         options.dryRun,
         onProgress,
         currentConfig,
@@ -90,11 +104,11 @@ export async function startWatch(options: WatchOptions): Promise<void> {
       throw e;
     }
 
-    console.log("Watching for file changes in", watchRoot);
-    fileSystem.loadMgrepignore(watchRoot);
+    console.log("Watching for file changes in", root);
+    fileSystem.loadMgrepignore(root);
 
     // Set up config file watchers for hot reload
-    const configPaths = getConfigPaths(watchRoot);
+    const configPaths = getConfigPaths(root);
     let configReloadTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const reloadConfigDebounced = () => {
@@ -102,11 +116,12 @@ export async function startWatch(options: WatchOptions): Promise<void> {
         clearTimeout(configReloadTimeout);
       }
       configReloadTimeout = setTimeout(() => {
-        const newConfig = reloadConfig(watchRoot, cliOptions);
+        const newConfig = reloadConfig(root, cliOptions);
         if (newConfig) {
           currentConfig = newConfig;
           console.log("Configuration reloaded successfully");
         } else {
+          currentConfig = loadConfig(root, cliOptions);
           console.warn("Config reload failed, keeping previous configuration");
         }
       }, CONFIG_RELOAD_DEBOUNCE_MS);
@@ -133,12 +148,12 @@ export async function startWatch(options: WatchOptions): Promise<void> {
     }
 
     // Watch for file changes in the project
-    fs.watch(watchRoot, { recursive: true }, (eventType, rawFilename) => {
+    fs.watch(root, { recursive: true }, (eventType, rawFilename) => {
       const filename = rawFilename?.toString();
       if (!filename) {
         return;
       }
-      const filePath = path.join(watchRoot, filename);
+      const filePath = path.join(root, filename);
 
       // Check if this is a config file change
       if (configPaths.includes(filePath)) {
@@ -147,7 +162,7 @@ export async function startWatch(options: WatchOptions): Promise<void> {
         return;
       }
 
-      if (fileSystem.isIgnored(filePath, watchRoot)) {
+      if (fileSystem.isIgnored(filePath, root)) {
         return;
       }
 
@@ -167,7 +182,7 @@ export async function startWatch(options: WatchOptions): Promise<void> {
             console.error("Failed to upload changed file:", filePath, err);
           });
       } catch {
-        if (filePath.startsWith(watchRoot) && !fs.existsSync(filePath)) {
+        if (filePath.startsWith(root) && !fs.existsSync(filePath)) {
           deleteFile(store, options.store, filePath)
             .then(() => {
               console.log(`delete: ${filePath}`);

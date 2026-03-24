@@ -1,6 +1,5 @@
 import { Command } from "commander";
-import { loadConfig } from "../lib/config.js";
-import { createFileSystem, createStore } from "../lib/context.js";
+import { createCommandContext } from "../lib/context.js";
 import {
   createIndexingSpinner,
   formatDryRunSummary,
@@ -24,8 +23,7 @@ export const syncCommand = new Command("sync")
   )
   // .option("--show-ignored", "Show ignored files (only with --dry-run)", false) // TODO: Implement breakdown
   .action(async (options) => {
-    const root = process.cwd();
-    const config = loadConfig(root);
+    const { root, config, fileSystem, store } = await createCommandContext();
 
     // Apply CLI overrides
     if (options.includeAll) {
@@ -41,7 +39,6 @@ export const syncCommand = new Command("sync")
     }
 
     try {
-      const store = await createStore();
       // Ensure store exists
       try {
         await store.retrieve(options.store);
@@ -51,11 +48,6 @@ export const syncCommand = new Command("sync")
           description: "mgrep store",
         });
       }
-
-      const fileSystem = createFileSystem({
-        ignoreConfig: config.ignore,
-        ignorePatterns: [],
-      });
 
       const { spinner, onProgress } = createIndexingSpinner(root);
 
