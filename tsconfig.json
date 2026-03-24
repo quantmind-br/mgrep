@@ -14,8 +14,9 @@
     "incremental": true,
     "sourceMap": true,
     "skipLibCheck": true,
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tavily-mcp", "test", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "test", "src/**/*.test.ts"]
 }
